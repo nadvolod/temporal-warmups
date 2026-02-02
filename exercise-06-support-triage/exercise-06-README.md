@@ -11,6 +11,130 @@ The system routes high-risk or low-confidence tickets to human review, while aut
 
 ![signal](src/main/java/solution/temporal/signal-image.png)
 
+## Quickstart Docs By Temporal
+
+[Get started in a few mins](https://docs.temporal.io/quickstarts?utm_campaign=awareness-nikolay-advolodkin&utm_medium=code&utm_source=github)
+
+---
+
+## Temporal Architecture Overview
+
+This diagram shows how the key Temporal components interact in this exercise:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           TEMPORAL SERVER                                    │
+│                        (localhost:7233)                                      │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                     Task Queue: "support-triage"                     │    │
+│  │                                                                      │    │
+│  │   Stores: Workflow state, Activity results, Signal data, Timers     │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+└───────────────────────────────┬─────────────────────────────────────────────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        │                       │                       │
+        ▼                       ▼                       ▼
+┌───────────────┐     ┌─────────────────┐     ┌─────────────────────┐
+│    CLIENT     │     │     WORKER      │     │   EXTERNAL SYSTEM   │
+│  (Starter.java)│     │  (WorkerApp.java)│     │   (CLI / API)       │
+│               │     │                 │     │                     │
+│ • Starts      │     │ • Polls task    │     │ • Sends signals     │
+│   workflows   │     │   queue         │     │   for human         │
+│ • Gets results│     │ • Executes      │     │   approval          │
+│               │     │   workflows &   │     │                     │
+│               │     │   activities    │     │ temporal workflow   │
+│               │     │                 │     │   signal ...        │
+└───────────────┘     └────────┬────────┘     └─────────────────────┘
+                               │
+                               ▼
+        ┌──────────────────────────────────────────────────────┐
+        │              WORKFLOW EXECUTION                       │
+        │         (SupportTriageWorkflowImpl)                   │
+        │                                                       │
+        │  ┌─────────────────────────────────────────────────┐ │
+        │  │  @WorkflowMethod triageTicket(ticketId, text)   │ │
+        │  │                                                  │ │
+        │  │    1. Execute Activity: scrubPII()              │ │
+        │  │              │                                   │ │
+        │  │              ▼                                   │ │
+        │  │    2. Execute Activity: classifyTicket()        │ │
+        │  │              │                                   │ │
+        │  │              ▼                                   │ │
+        │  │    3. Routing Logic (deterministic)             │ │
+        │  │       if (confidence < 0.7 || urgency=critical) │ │
+        │  │              │                                   │ │
+        │  │              ▼                                   │ │
+        │  │    4. Workflow.await() ◄── @SignalMethod        │ │
+        │  │       (waits for human approval)                │ │
+        │  │              │                                   │ │
+        │  │              ▼                                   │ │
+        │  │    5. Return TriageResult                       │ │
+        │  └─────────────────────────────────────────────────┘ │
+        │                                                       │
+        │  ┌────────────────────┐  ┌────────────────────────┐  │
+        │  │  ACTIVITY 1        │  │  ACTIVITY 2            │  │
+        │  │  PIIScrubber       │  │  TicketClassifier      │  │
+        │  │                    │  │                        │  │
+        │  │  • Calls OpenAI    │  │  • Calls OpenAI        │  │
+        │  │  • Redacts PII     │  │  • Returns category,   │  │
+        │  │  • Retries: 5x     │  │    urgency, confidence │  │
+        │  │  • Timeout: 60s    │  │  • Retries: 5x         │  │
+        │  └────────────────────┘  └────────────────────────┘  │
+        └──────────────────────────────────────────────────────┘
+```
+
+### Component Breakdown
+
+| Component | File(s) | Responsibility |
+|-----------|---------|----------------|
+| **Temporal Server** | External process | Orchestrates everything - stores workflow state, manages task queues, persists signals, handles retries |
+| **Client** | `Starter.java` | Starts workflow executions, waits for results |
+| **Worker** | `WorkerApp.java` | Long-running process that polls task queue, executes workflows and activities |
+| **Workflow** | `SupportTriageWorkflow.java` (interface) `SupportTriageWorkflowImpl.java` (impl) | Orchestrates the multi-agent flow with deterministic logic |
+| **Activities** | `PIIScrubberActivity.java` `TicketClassifierActivity.java` | Non-deterministic operations (OpenAI API calls) |
+| **Signal** | `@SignalMethod approveTicket()` | Enables external code to send data into running workflow |
+
+### Data Flow
+
+```
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│   Raw Text   │───▶│  Activity 1  │───▶│  Activity 2  │───▶│   Workflow   │
+│              │    │  (Scrub PII) │    │  (Classify)  │    │   Decision   │
+│ "My SSN is   │    │              │    │              │    │              │
+│  123-45-6789"│    │ "My SSN is   │    │ category:    │    │ needsReview? │
+│              │    │  [REDACTED]" │    │   billing    │    │     │        │
+└──────────────┘    └──────────────┘    │ confidence:  │    └─────┼────────┘
+                                        │   0.65       │          │
+                                        └──────────────┘          ▼
+                                                            ┌──────────────┐
+                                                            │    Signal    │
+                                                            │   (await)    │
+                                                            │              │
+                                         Human approval ───▶│ approveTicket│
+                                                            │   (true)     │
+                                                            └──────┬───────┘
+                                                                   │
+                                                                   ▼
+                                                            ┌──────────────┐
+                                                            │TriageResult  │
+                                                            │ caseId:      │
+                                                            │  CASE-12345  │
+                                                            └──────────────┘
+```
+
+### Why This Architecture Matters
+
+| Without Temporal | With Temporal |
+|------------------|---------------|
+| Activity 2 fails → re-run Activity 1 (wasted API cost) | Activity 2 fails → only retry Activity 2 |
+| Process crash → start over | Process crash → resume from checkpoint |
+| No visibility into AI decisions | Full audit trail in Event History |
+| Manual try/catch everywhere | Automatic retries with backoff |
+| High-risk tickets auto-processed | Signals enable human-in-the-loop approval |
+
+---
+
 ## Run the Pre-Temporal Baseline
 
 ### Prerequisites

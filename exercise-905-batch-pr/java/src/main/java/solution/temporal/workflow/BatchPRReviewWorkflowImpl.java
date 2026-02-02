@@ -285,7 +285,6 @@ public class BatchPRReviewWorkflowImpl implements BatchPRReviewWorkflow {
         /**
          * Q: What is isContinueAsNewSuggested()?
          * A: Temporal's internal recommendation based on history size.
-         *    It considers factors we might not know about.
          */
         if (Workflow.getInfo().isContinueAsNewSuggested()) {
             return true;

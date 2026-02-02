@@ -33,7 +33,7 @@ public class Starter {
             String ticketId = parts[0];
             String ticketText = parts[1];
             //4. create workflowId
-            String workflowId = TASK_QUEUE + "-" + UUID.randomUUID();
+            String workflowId = TASK_QUEUE + "-" + ticketId;
 
             //5. create a workflow stub
             SupportTriageWorkflow workflow = client.newWorkflowStub(SupportTriageWorkflow.class,
