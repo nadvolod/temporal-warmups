@@ -18,7 +18,7 @@ public class PaymentStarter {
 
     public static void main(String[] args) {
         System.out.println("==========================================================");
-        System.out.println("  PAYMENT STARTER — Exercise 1300a: Nexus Sync");
+        System.out.println("  PAYMENT STARTER — Nexus Sync: Decouple Your Teams");
         System.out.println("  Running 3 transactions through Temporal");
         System.out.println("==========================================================\n");
 

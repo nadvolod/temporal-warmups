@@ -60,17 +60,17 @@ ComplianceResult compliance = complianceService.checkCompliance(compReq);
 
 Same method name. Same input. Same output. Completely different architecture.
 
-## Quickstart Docs By Temporal
+<p align="center">
+  <img src="ui/nexus-durability.svg" alt="Durability: When Compliance crashes, the Payment workflow pauses and automatically resumes when Compliance recovers — no data loss, no retry logic needed" width="100%"/>
+</p>
+
+## New to Temporal?
 
 :rocket: [Get started in a few mins](https://docs.temporal.io/quickstarts?utm_campaign=awareness-nikolay-advolodkin&utm_medium=code&utm_source=github)
 
 ---
 
 ## Overview
-
-<p align="center">
-  <img src="ui/scenario-overview.svg" alt="Scenario Overview: Payments and Compliance teams separated by a Nexus security boundary, with animated transaction data flowing through validate, compliance check, and execute steps" width="100%"/>
-</p>
 
 The diagram above shows the decoupled architecture you'll build in this exercise. On the left, the **Payments** team owns validation and execution — the entry and exit points of every transaction. 
 
@@ -80,9 +80,8 @@ When a payment arrives, data flows left-to-right: the Payments workflow validate
 
 > **Interactive version:** Open [`ui/nexus-decouple.html`](ui/nexus-decouple.html) in your browser to toggle between Monolith and Nexus modes with animated data flow.
 
-### What You'll Build
-
-```text
+<!-- ASCII removed — covered by SVGs above -->
+<!-- ```text
 BEFORE (Monolith):                    AFTER (Nexus Decoupled):
 ┌─────────────────────────┐           ┌──────────────┐    ┌──────────────┐
 │   Single Worker         │           │  Payments    │    │  Compliance  │
@@ -94,7 +93,7 @@ BEFORE (Monolith):                    AFTER (Nexus Decoupled):
 │   ONE blast radius      │           │  Blast #1    │    │  Blast #2   │
 └─────────────────────────┘           └──────────────┘    └──────────────┘
                                               ▲ Nexus ▲
-```
+``` -->
 
 ---
 
@@ -291,7 +290,39 @@ This is the **waiter** that takes orders from the Payments team and passes them 
 
 > **Key insight:** The handler method name must **exactly match** the interface method name. `checkCompliance` in the interface = `checkCompliance()` in the handler. Temporal matches by name.
 
-> **Sync vs Async:** This is a sync handler — it runs inline and returns immediately. You'll learn about async handlers (which start full workflows on the other side) in a later exercise.
+> **Common trap:** Don't write `class ComplianceNexusServiceImpl implements ComplianceNexusService`. The handler does **not** implement the interface — the signatures are completely different. The interface method returns `ComplianceResult`, but the handler method returns `OperationHandler<ComplianceRequest, ComplianceResult>`. The link between them is the `@ServiceImpl` annotation, not Java's `implements`.
+
+> **Sync vs Async:** This is a sync handler — it runs inline and returns immediately. For async handlers (which start full workflows on the other side), see the [Nexus docs](https://docs.temporal.io/nexus).
+
+### Quick Check
+
+**Q1:** What does `@ServiceImpl(service = ComplianceNexusService.class)` tell Temporal?
+
+- A) This class is a Temporal workflow
+- B) This class handles Nexus requests for the `ComplianceNexusService` interface
+- C) This class registers a new activity type
+- D) This class creates a Nexus endpoint
+
+<details>
+<summary>Answer</summary>
+
+**B.** `@ServiceImpl` links the handler class to its Nexus service interface. Temporal uses this to route incoming Nexus operations to the correct handler.
+
+</details>
+
+**Q2:** Why does `checkCompliance()` return `OperationHandler<ComplianceRequest, ComplianceResult>` instead of returning `ComplianceResult` directly?
+
+- A) It's a Temporal bug — they plan to simplify this later
+- B) The handler is a factory that describes *how* to handle the operation, not the result itself
+- C) `OperationHandler` is needed for serialization
+- D) It's only required for async handlers, not sync
+
+<details>
+<summary>Answer</summary>
+
+**B.** The method returns an `OperationHandler` — a description of *how* to process the operation (sync vs async, which lambda to run). Temporal calls this handler when a request arrives. Think of it as returning a recipe, not the meal.
+
+</details>
 
 ---
 
@@ -371,7 +402,7 @@ private final ComplianceNexusService complianceService = Workflow.newNexusServic
     ComplianceNexusService.class,
     NexusServiceOptions.newBuilder()
         .setOperationOptions(NexusOperationOptions.newBuilder()
-            .setScheduleToCloseTimeout(Duration.ofMinutes(2))
+            .setScheduleToCloseTimeout(Duration.ofMinutes(10))
             .build())
         .build());
 
@@ -521,6 +552,36 @@ The payment workflow didn't crash. It didn't timeout. It didn't lose data. It ju
 
 ---
 
+## Bonus Exercise: What Happens When You Wait Too Long?
+
+You saw the workflow **wait** for the compliance worker to come back. But what if it never comes back?
+
+**Try this:**
+
+1. Start both workers and the starter
+2. Kill the compliance worker while a transaction is processing
+3. **Don't restart it.** Wait and watch the Temporal UI at http://localhost:8233
+
+**Question:** What eventually happens to the payment workflow?
+
+<details>
+<summary>Answer</summary>
+
+The Nexus operation fails with a `SCHEDULE_TO_CLOSE` timeout after 10 minutes. The workflow's `catch` block handles it — the payment gets status `FAILED` instead of hanging forever.
+
+This is the `scheduleToCloseTimeout` you set in TODO 4:
+
+```java
+NexusOperationOptions.newBuilder()
+    .setScheduleToCloseTimeout(Duration.ofMinutes(10))
+```
+
+**The lesson:** Nexus gives you durability, not infinite patience. You control how long the workflow is willing to wait. In production, you'd set this based on your SLA — maybe 30 seconds for a real-time payment, or 24 hours for a batch compliance review.
+
+</details>
+
+---
+
 ## Quiz
 
 Test your understanding before moving on:
@@ -539,7 +600,7 @@ In `PaymentsWorkerApp`, via `NexusServiceOptions` → `setEndpoint("compliance-e
 <details>
 <summary>Answer</summary>
 
-The Nexus operation will be retried by Temporal until the `scheduleToCloseTimeout` expires (2 minutes in our case). If the Compliance worker comes back within that window, the operation completes successfully. The Payment workflow just waits — no crash, no data loss.
+The Nexus operation will be retried by Temporal until the `scheduleToCloseTimeout` expires (10 minutes in our case). If the Compliance worker comes back within that window, the operation completes successfully. The Payment workflow just waits — no crash, no data loss.
 
 </details>
 
@@ -568,9 +629,9 @@ The Nexus Machinery treats unknown errors as **retryable** by default. It will a
 
 ## What's Next?
 
-You've just learned the fundamental Nexus pattern: **same method call, different architecture**. Everything that follows builds on this foundation.
+You've just learned the fundamental Nexus pattern: **same method call, different architecture**.
 
-Next up: upgrade from `sync()` to `fromWorkflowMethod()` — where the Compliance side starts a full Temporal workflow instead of running inline. That's where Nexus truly shines: long-running, durable operations across team boundaries.
+From here you can explore **async Nexus handlers** using `fromWorkflowMethod()` — where the Compliance side starts a full Temporal workflow instead of running inline. That's where Nexus truly shines: long-running, durable operations across team boundaries. See the [Nexus documentation](https://docs.temporal.io/nexus) to go deeper.
 
 ---
 
