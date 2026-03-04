@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Exercise 1300a — Nexus Sync: Decouple Your Teams</title>
+<title>Nexus Sync: Decouple Your Teams</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -525,7 +525,7 @@
 
 <header>
   <div class="badge">NEXUS</div>
-  <h1>Exercise 1300a — Decouple Your Teams</h1>
+  <h1>Nexus Sync — Decouple Your Teams</h1>
   <span class="subtitle">Before & After: Monolith vs Nexus-Decoupled Architecture</span>
 </header>
 
@@ -1025,7 +1025,7 @@ const panelContent = {
     title: 'ComplianceChecker',
     type: 'Rule engine \u2014 no AI, no API keys',
     body: `
-      <p>Deterministic rule-based compliance checker. Same rules as the AI agent in Exercise 1301, but with zero external dependencies.</p>
+      <p>Deterministic rule-based compliance checker. Zero external dependencies.</p>
       <div class="highlight">Rules:<br>
       \u2022 OFAC sanctioned countries \u2192 HIGH risk, blocked<br>
       \u2022 Amount > $50K \u2192 HIGH risk, blocked<br>
@@ -1040,7 +1040,7 @@ const panelContent = {
       <p>This is the <strong>most important new file</strong> in the exercise.</p>
       <div class="highlight"><code>@ServiceImpl(service = ComplianceNexusService.class)</code> tells Temporal this class handles Nexus requests for that interface.</div>
       <p>The <code>@OperationImpl</code> method returns <code>WorkflowClientOperationHandlers.sync(...)</code> \u2014 meaning: run inline, return immediately.</p>
-      <p>In Exercise 1302 you'll learn about <strong>async</strong> handlers using <code>fromWorkflowMethod()</code>.</p>
+      <p>For <strong>async</strong> handlers using <code>fromWorkflowMethod()</code>, see the <a href="https://docs.temporal.io/nexus" target="_blank">Nexus docs</a>.</p>
     `
   },
 };
