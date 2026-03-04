@@ -289,6 +289,36 @@ This is the **waiter** that takes orders from the Payments team and passes them 
 
 > **Sync vs Async:** This is a sync handler — it runs inline and returns immediately. You'll learn about async handlers (which start full workflows on the other side) in a later exercise.
 
+### Quick Check
+
+**Q1:** What does `@ServiceImpl(service = ComplianceNexusService.class)` tell Temporal?
+
+- A) This class is a Temporal workflow
+- B) This class handles Nexus requests for the `ComplianceNexusService` interface
+- C) This class registers a new activity type
+- D) This class creates a Nexus endpoint
+
+<details>
+<summary>Answer</summary>
+
+**B.** `@ServiceImpl` links the handler class to its Nexus service interface. Temporal uses this to route incoming Nexus operations to the correct handler.
+
+</details>
+
+**Q2:** Why does `checkCompliance()` return `OperationHandler<ComplianceRequest, ComplianceResult>` instead of returning `ComplianceResult` directly?
+
+- A) It's a Temporal bug — they plan to simplify this later
+- B) The handler is a factory that describes *how* to handle the operation, not the result itself
+- C) `OperationHandler` is needed for serialization
+- D) It's only required for async handlers, not sync
+
+<details>
+<summary>Answer</summary>
+
+**B.** The method returns an `OperationHandler` — a description of *how* to process the operation (sync vs async, which lambda to run). Temporal calls this handler when a request arrives. Think of it as returning a recipe, not the meal.
+
+</details>
+
 ---
 
 ## TODO 3: Create the Compliance Worker
