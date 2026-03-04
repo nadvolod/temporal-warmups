@@ -6,59 +6,9 @@
 
 ## Scenario
 
-You work at a bank. Every payment goes through **three steps**:
-
-1. **Validate** the payment (amount, accounts)
-2. **Check compliance** (risk assessment, sanctions screening)
-3. **Execute** the payment (call the gateway)
-
-Two teams own this process:
-
-<table>
-<tr>
-<th>Team</th>
-<th>Owns</th>
-<th>Deploys To</th>
-</tr>
-<tr>
-<td><strong>&#x1F4B3; Payments</strong></td>
-<td>Steps 1 &amp; 3 — validate and execute</td>
-<td><code>payments-processing</code></td>
-</tr>
-<tr>
-<td><strong>&#x1F50D; Compliance</strong></td>
-<td>Step 2 — risk assessment &amp; regulatory checks</td>
-<td><code>compliance-risk</code></td>
-</tr>
-</table>
-
-### The Problem
-
-Right now, **both teams' code runs on the same worker**. One process. One deployment. One blast radius.
-
-This is a **security and risk problem**. Compliance handles OFAC sanctions screening, AML monitoring, and regulatory risk decisions. That code has different access requirements, different audit trails, and different deployment cadences than Payments. But they're jammed into the same process — same failure domain, same security perimeter, same deploy pipeline.
-
-The Compliance team ships a bug at 3am. Their code crashes. But it's running on the Payments worker — so **Payments goes down too**. Same blast radius. Same 3am page. Two teams, one shared fate.
-
-You could split them with REST calls between microservices. But now you've got a new problem: if Compliance is down when Payments calls it, the request is lost. No retries. No durability. You're writing your own retry loops, circuit breakers, and dead letter queues. You've traded one problem for three.
-
-### The Solution: Temporal Nexus
-
-**Nexus** gives you team boundaries **with** durability. Each team gets its own worker, its own deployment pipeline, its own security perimeter, its own blast radius — while Temporal manages the durable, type-safe calls between them.
-
-The Payments workflow calls the Compliance team through a Nexus operation. If the Compliance worker goes down mid-call, the payment workflow just... waits. When Compliance comes back, it picks up exactly where it left off. No retry logic. No data loss. No 3am page for the Payments team.
-
-The best part? The code change is almost invisible:
-
-```java
-// BEFORE (monolith — direct activity call):
-ComplianceResult compliance = complianceActivity.checkCompliance(compReq);
-
-// AFTER (Nexus — durable cross-team call):
-ComplianceResult compliance = complianceService.checkCompliance(compReq);
-```
-
-Same method name. Same input. Same output. Completely different architecture.
+<p align="center">
+  <img src="ui/nexus-durability.svg" alt="Durability: When Compliance crashes, the Payment workflow pauses and automatically resumes when Compliance recovers — no data loss, no retry logic needed" width="100%"/>
+</p>
 
 ## Quickstart Docs By Temporal
 
@@ -74,9 +24,8 @@ Same method name. Same input. Same output. Completely different architecture.
 
 > **Interactive version:** Open [`ui/nexus-decouple.html`](ui/nexus-decouple.html) in your browser to toggle between Monolith and Nexus modes with animated data flow.
 
-### What You'll Build
-
-```text
+<!-- ASCII removed — covered by SVGs above -->
+<!-- ```text
 BEFORE (Monolith):                    AFTER (Nexus Decoupled):
 ┌─────────────────────────┐           ┌──────────────┐    ┌──────────────┐
 │   Single Worker         │           │  Payments    │    │  Compliance  │
@@ -88,7 +37,7 @@ BEFORE (Monolith):                    AFTER (Nexus Decoupled):
 │   ONE blast radius      │           │  Blast #1    │    │  Blast #2   │
 └─────────────────────────┘           └──────────────┘    └──────────────┘
                                               ▲ Nexus ▲
-```
+``` -->
 
 ---
 
@@ -264,7 +213,39 @@ This is the **waiter** that takes orders from the Payments team and passes them 
 
 > **Key insight:** The handler method name must **exactly match** the interface method name. `checkCompliance` in the interface = `checkCompliance()` in the handler. Temporal matches by name.
 
-> **Sync vs Async:** This is a sync handler — it runs inline and returns immediately. You'll learn about async handlers (which start full workflows on the other side) in a later exercise.
+> **Common trap:** Don't write `class ComplianceNexusServiceImpl implements ComplianceNexusService`. The handler does **not** implement the interface — the signatures are completely different. The interface method returns `ComplianceResult`, but the handler method returns `OperationHandler<ComplianceRequest, ComplianceResult>`. The link between them is the `@ServiceImpl` annotation, not Java's `implements`.
+
+> **Sync vs Async:** This is a sync handler — it runs inline and returns immediately. For async handlers (which start full workflows on the other side), see the [Nexus docs](https://docs.temporal.io/nexus).
+
+### Quick Check
+
+**Q1:** What does `@ServiceImpl(service = ComplianceNexusService.class)` tell Temporal?
+
+- A) This class is a Temporal workflow
+- B) This class handles Nexus requests for the `ComplianceNexusService` interface
+- C) This class registers a new activity type
+- D) This class creates a Nexus endpoint
+
+<details>
+<summary>Answer</summary>
+
+**B.** `@ServiceImpl` links the handler class to its Nexus service interface. Temporal uses this to route incoming Nexus operations to the correct handler.
+
+</details>
+
+**Q2:** Why does `checkCompliance()` return `OperationHandler<ComplianceRequest, ComplianceResult>` instead of returning `ComplianceResult` directly?
+
+- A) It's a Temporal bug — they plan to simplify this later
+- B) The handler is a factory that describes *how* to handle the operation, not the result itself
+- C) `OperationHandler` is needed for serialization
+- D) It's only required for async handlers, not sync
+
+<details>
+<summary>Answer</summary>
+
+**B.** The method returns an `OperationHandler` — a description of *how* to process the operation (sync vs async, which lambda to run). Temporal calls this handler when a request arrives. Think of it as returning a recipe, not the meal.
+
+</details>
 
 ---
 
@@ -526,9 +507,9 @@ Think of it as: the interface is the **menu** (shared), the handler is the **kit
 
 ## What's Next?
 
-You've just learned the fundamental Nexus pattern: **same method call, different architecture**. Everything that follows builds on this foundation.
+You've just learned the fundamental Nexus pattern: **same method call, different architecture**.
 
-Next up: upgrade from `sync()` to `fromWorkflowMethod()` — where the Compliance side starts a full Temporal workflow instead of running inline. That's where Nexus truly shines: long-running, durable operations across team boundaries.
+From here you can explore **async Nexus handlers** using `fromWorkflowMethod()` — where the Compliance side starts a full Temporal workflow instead of running inline. That's where Nexus truly shines: long-running, durable operations across team boundaries. See the [Nexus documentation](https://docs.temporal.io/nexus) to go deeper.
 
 ---
 
