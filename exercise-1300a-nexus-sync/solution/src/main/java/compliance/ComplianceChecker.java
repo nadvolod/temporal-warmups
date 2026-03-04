@@ -10,8 +10,8 @@ import java.util.Set;
 /**
  * [GIVEN] Rule-based compliance checker — deterministic, no API keys needed.
  *
- * This replaces the AI-powered ComplianceAgent from Exercise 1301.
- * Same interface, same results, zero external dependencies.
+ * Deterministic, rule-based compliance checker — no external API calls needed.
+ * Same interface whether used as an Activity or behind a Nexus handler.
  *
  * Rules:
  *   - OFAC sanctioned countries (North Korea, Iran, Cuba, Syria, Venezuela) → HIGH risk, blocked
@@ -36,9 +36,11 @@ public class ComplianceChecker {
                 + " | $" + String.format("%.2f", request.getAmount())
                 + " | " + request.getSenderCountry() + " -> " + request.getReceiverCountry());
 
-        // Simulate processing time (rule evaluation)
+        // Simulate processing time — slow enough to test the Victory Lap
+        // (kill the compliance worker while this is running to see Nexus durability)
+        System.out.println("[ComplianceChecker] Processing " + request.getTransactionId() + " (10s delay)...");
         try {
-            Thread.sleep(200 + (long) (Math.random() * 300));
+            Thread.sleep(10_000);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
