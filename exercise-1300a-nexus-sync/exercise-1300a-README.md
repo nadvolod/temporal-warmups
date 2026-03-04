@@ -540,10 +540,6 @@ Same results, completely different architecture. Two workers, two blast radii, t
 
 This is where it gets fun. Let's prove that Nexus is **durable** — not just a fancy RPC.
 
-<p align="center">
-  <img src="ui/durability-demo.svg" alt="Durability demo: Nexus pauses and resumes when the Compliance worker dies and restarts, while REST loses the transaction entirely" width="100%"/>
-</p>
-
 1. **Start both workers** (if not already running)
 2. **Run the starter** in another terminal
 3. **While TXN-B is processing**, kill the compliance worker (Ctrl+C in Terminal 1)
