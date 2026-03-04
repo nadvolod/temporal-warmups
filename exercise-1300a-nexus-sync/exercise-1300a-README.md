@@ -213,7 +213,7 @@ In this exercise, you're going to pull Compliance out of the Payments Worker and
 ## Checkpoint 0.5: Create the Nexus Endpoint
 
 Before implementing the TODOs, register the [Nexus endpoint](https://docs.temporal.io/glossary#nexus-endpoint) with Temporal. This tells Temporal: *"When someone calls `compliance-endpoint`, route it to the `compliance-risk` task queue."*
-Without this, the Payments Worker has no way to route calls to the Complaince Worker. 
+Without this, the Payments Worker has no way to route calls to the Compliance Worker. 
 
 ```bash
 temporal operator nexus endpoint create \
