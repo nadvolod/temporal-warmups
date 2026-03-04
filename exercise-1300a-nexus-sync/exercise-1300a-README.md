@@ -325,7 +325,7 @@ private final ComplianceNexusService complianceService = Workflow.newNexusServic
     ComplianceNexusService.class,
     NexusServiceOptions.newBuilder()
         .setOperationOptions(NexusOperationOptions.newBuilder()
-            .setScheduleToCloseTimeout(Duration.ofMinutes(2))
+            .setScheduleToCloseTimeout(Duration.ofMinutes(10))
             .build())
         .build());
 
@@ -469,6 +469,36 @@ The payment workflow didn't crash. It didn't timeout. It didn't lose data. It ju
 
 ---
 
+## Bonus Exercise: What Happens When You Wait Too Long?
+
+You saw the workflow **wait** for the compliance worker to come back. But what if it never comes back?
+
+**Try this:**
+
+1. Start both workers and the starter
+2. Kill the compliance worker while a transaction is processing
+3. **Don't restart it.** Wait and watch the Temporal UI at http://localhost:8233
+
+**Question:** What eventually happens to the payment workflow?
+
+<details>
+<summary>Answer</summary>
+
+The Nexus operation fails with a `SCHEDULE_TO_CLOSE` timeout after 10 minutes. The workflow's `catch` block handles it — the payment gets status `FAILED` instead of hanging forever.
+
+This is the `scheduleToCloseTimeout` you set in TODO 4:
+
+```java
+NexusOperationOptions.newBuilder()
+    .setScheduleToCloseTimeout(Duration.ofMinutes(10))
+```
+
+**The lesson:** Nexus gives you durability, not infinite patience. You control how long the workflow is willing to wait. In production, you'd set this based on your SLA — maybe 30 seconds for a real-time payment, or 24 hours for a batch compliance review.
+
+</details>
+
+---
+
 ## Quiz
 
 Test your understanding before moving on:
@@ -487,7 +517,7 @@ In `PaymentsWorkerApp`, via `NexusServiceOptions` → `setEndpoint("compliance-e
 <details>
 <summary>Answer</summary>
 
-The Nexus operation will be retried by Temporal until the `scheduleToCloseTimeout` expires (2 minutes in our case). If the Compliance worker comes back within that window, the operation completes successfully. The Payment workflow just waits — no crash, no data loss.
+The Nexus operation will be retried by Temporal until the `scheduleToCloseTimeout` expires (10 minutes in our case). If the Compliance worker comes back within that window, the operation completes successfully. The Payment workflow just waits — no crash, no data loss.
 
 </details>
 
