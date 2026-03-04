@@ -524,6 +524,35 @@ The payment workflow didn't crash. It didn't timeout. It didn't lose data. It ju
 > **Try this with REST:** Kill the compliance service mid-request. What happens? Connection reset. Transaction lost. 3am page. With Nexus, the workflow simply picks up where it left off.
 
 ---
+## Bonus Exercise: What Happens When You Wait Too Long?
+
+You saw the workflow **wait** for the compliance worker to come back. But what if it never comes back?
+
+**Try this:**
+
+1. Start both workers and the starter
+2. Kill the compliance worker while a transaction is processing
+3. **Don't restart it.** Wait and watch the Temporal UI at http://localhost:8233
+
+**Question:** What eventually happens to the payment workflow?
+
+<details>
+<summary>Answer</summary>
+
+The Nexus operation fails with a `SCHEDULE_TO_CLOSE` timeout after 10 minutes. The workflow's `catch` block handles it — the payment gets status `FAILED` instead of hanging forever.
+
+This is the `scheduleToCloseTimeout` you set in TODO 4:
+
+```java
+NexusOperationOptions.newBuilder()
+    .setScheduleToCloseTimeout(Duration.ofMinutes(10))
+```
+
+**The lesson:** Nexus gives you durability, not infinite patience. You control how long the workflow is willing to wait. In production, you'd set this based on your SLA — maybe 30 seconds for a real-time payment, or 24 hours for a batch compliance review.
+
+</details>
+
+--
 
 ## Quiz
 
@@ -572,9 +601,9 @@ The Nexus Machinery treats unknown errors as **retryable** by default. It will a
 
 ## What's Next?
 
-You've just learned the fundamental Nexus pattern: **same method call, different architecture**. Everything that follows builds on this foundation.
+You've just learned the fundamental Nexus pattern: **same method call, different architecture**.
 
-Next up: upgrade from `sync()` to `fromWorkflowMethod()` — where the Compliance side starts a full Temporal workflow instead of running inline. That's where Nexus truly shines: long-running, durable operations across team boundaries.
+From here you can explore **async Nexus handlers** using `fromWorkflowMethod()` — where the Compliance side starts a full Temporal workflow instead of running inline. That's where Nexus truly shines: long-running, durable operations across team boundaries. See the [Nexus documentation](https://docs.temporal.io/nexus) to go deeper.
 
 ---
 
