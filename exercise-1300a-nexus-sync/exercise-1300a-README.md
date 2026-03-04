@@ -165,6 +165,24 @@ mvn compile exec:java@starter
 
 ---
 
+## Nexus Building Blocks
+
+Before diving into code, here's a quick map of the 4 Nexus concepts you'll encounter:
+
+```text
+Registry  →  Endpoint  →  Service  →  Operation
+(phone book)   (phone #)    (department)  (specific request)
+```
+
+- [**Nexus Registry**](https://docs.temporal.io/nexus/registry) — The directory where all Endpoints are registered
+- [**Nexus Endpoint**](https://docs.temporal.io/nexus/endpoints) — A named entry point that routes requests to the right Namespace and Task Queue, so the caller doesn't need to know where the handler lives
+- [**Nexus Service**](https://docs.temporal.io/nexus/services) — A named collection of operations — the contract between teams (e.g., the `ComplianceNexusService` interface)
+- [**Nexus Operation**](https://docs.temporal.io/nexus/operations) — A single callable method on a Service, marked with `@Operation` (e.g., `checkCompliance`)
+
+You create an **Endpoint** in the **Registry** (Checkpoint 0.5). You define a **Service** with **Operations** (TODOs 1-2). The caller dials the Endpoint name — Temporal routes the rest.
+
+---
+
 ## Your 5-Step Decoupling Plan
 
 In this exercise, you're going to pull Compliance out of the Payments Worker and into its own independent Worker, connected through a Nexus boundary. Steps 1-3 build the Compliance side (contract, handler, Worker), and steps 4-5 rewire the Payments side to call it through Nexus instead of a local Activity.
@@ -476,7 +494,13 @@ mvn compile exec:java@starter
 
 Same results, completely different architecture. Two workers, two blast radii, two independent teams.
 
-> **Check the Temporal UI** at http://localhost:8233 — you should see Nexus operations in the workflow event history!
+**What just happened at runtime?** Your Payments workflow scheduled a Nexus operation → Temporal looked up `compliance-endpoint` in the Registry → routed the request to the `compliance-risk` task queue → the Compliance worker picked up the Nexus task, ran `checkCompliance()`, and returned the result → Temporal recorded it in the caller's workflow history. All durable, all automatic.
+
+> **Check the Temporal UI** at http://localhost:8233. Open any completed workflow's Event History. You'll see two new event types that weren't there in Checkpoint 0:
+> - [`NexusOperationScheduled`](https://docs.temporal.io/references/events#nexusoperationscheduled) — the workflow asked Temporal to route a call
+> - [`NexusOperationCompleted`](https://docs.temporal.io/references/events#nexusoperationcompleted) — the result came back
+>
+> Notice there's no [`NexusOperationStarted`](https://docs.temporal.io/references/events#nexusoperationstarted) event. That's because this is a **sync** operation — it ran inline and returned immediately. In the next exercise (async), you'll see all three events.
 
 ---
 
@@ -528,6 +552,15 @@ The Nexus operation will be retried by Temporal until the `scheduleToCloseTimeou
 - `@ServiceImpl` / `@OperationImpl` (from `io.nexusrpc.handler`) go on the **handler class** — the implementation that only the Compliance team owns
 
 Think of it as: the interface is the **menu** (shared), the handler is the **kitchen** (private).
+
+</details>
+
+**Q4:** What if `ComplianceChecker.checkCompliance()` throws an exception instead of returning `approved=false`?
+
+<details>
+<summary>Answer</summary>
+
+The Nexus Machinery treats unknown errors as **retryable** by default. It will automatically retry the operation with backoff until the `scheduleToCloseTimeout` (2 minutes) expires. If you want to fail immediately (no retries), throw a non-retryable `ApplicationFailure`. Same principle as Activities, but with a built-in retry policy you don't configure yourself.
 
 </details>
 
