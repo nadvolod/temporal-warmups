@@ -38,7 +38,7 @@ Right now, **both teams' code runs on the same Worker**. One process. One deploy
 
 This is a **security and operational risk problem**. The Compliance team deals with sensitive regulatory work — OFAC sanctions screening, anti-money laundering (AML) monitoring, risk decisions — that requires stricter access controls, separate audit trails, and its own release cycle. Payments has none of those constraints. But because both teams share a single process, they're forced into the same failure domain, the same security perimeter, and the same deploy pipeline.
 
-Here's what that sharing a single process can look like in practice: The Compliance team ships a bug at 3am. Their code crashes. But it's running on the Payments worker — so **Payments goes down too**. Same blast radius. Same 3am page. Two teams, one shared fate.
+Here's what that sharing a single process can look like in practice: The Compliance team ships a bug at 3am. Their code crashes. But it's running on the Payments Worker — so **Payments goes down too**. Same blast radius. Same 3am page. Two teams, one shared fate.
 
 You could split them with REST calls between microservices. But now you've got a new problem: if Compliance is down when Payments calls it, the request is lost. No retries. No durability. You're writing your own retry loops, circuit breakers, and dead letter queues. You've traded one problem for three.
 
