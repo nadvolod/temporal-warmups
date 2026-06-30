@@ -10,6 +10,25 @@ A progressive series of hands-on exercises designed to build expertise with Temp
 
 ---
 
+## Exercise Design Contract
+
+Each warmup should teach Temporal, not ask the student to rebuild ordinary product code.
+
+Provide the application logic up front: fake databases, API adapters, email/payment/LLM stubs, domain models, calculations, and any noisy business plumbing should already run before the student starts the Temporal portion.
+
+Leave TODOs for Temporal concepts only:
+- workflow and activity boundaries
+- activity stubs/proxies and options
+- retry policies and timeouts
+- workflow orchestration and deterministic state
+- signals, queries, timers, child workflows, Nexus calls, and continue-as-new
+- saga compensation and recovery behavior
+- worker registration and starter/client code when those are the lesson
+
+README language should make the contract explicit: **application logic is provided; your job is to make it durable with Temporal.**
+
+---
+
 ## Common Type Serialization Issues (Exercises #1-4)
 
 **CRITICAL:** Temporal's default JSON converter has limitations that affect all beginner exercises.

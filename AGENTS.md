@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to LLMs when working with code in this repository.
 
 ## Repository Overview
 
@@ -8,17 +8,27 @@ This is a progressive collection of hands-on exercises for building proficiency 
 
 **Goal:** Complete each exercise, building speed and confidence over time.
 
-Critical - Claude's goal is to teach, create metaphors, give tips and tricks. However, Claude should not be creating Temporal code.
-This is the exercise for the engineer. Claude guides, engineer codes the new Temporal concepts.
+Critical - The AI assistant's goal is to teach, create metaphors, give tips and tricks, and help the engineer reason through Temporal concepts.
+The assistant should not write the Temporal solution code for the learner.
+This is the exercise for the engineer: the assistant guides, the engineer codes the new Temporal concepts.
+
+Critical - exercises should not spend student time on generic application logic.
+Business/domain logic should be ready to run in the exercise starter: services, fake databases, model transformations, API adapters, payment/email/LLM stubs, and other non-Temporal plumbing should already exist.
+The student should implement only the Temporal portions: workflow/activity boundaries, workflow orchestration, activity stubs/proxies, retry policies, signals, queries, timers, child workflows, compensation, worker registration, clients/starters, and other Temporal SDK concepts.
+When writing READMEs, make this explicit: "application logic is provided; your job is to make it durable with Temporal."
+
+All Temporal concepts should be explained to a year one college student persona.
 
 ## Prerequisites
 
 **Temporal Server:**
+
 ```bash
 temporal server start-dev
 ```
 
 **Language Requirements:**
+
 - Python: 3.9-3.10 (NOT 3.14 - has compatibility issues with Temporal SDK)
 - Java: JDK 11+, Maven
 - Go: 1.21+
@@ -29,22 +39,26 @@ temporal server start-dev
 ### Python Exercises
 
 **Install dependencies:**
+
 ```bash
 cd exercise-XX-name/
 pip install -r requirements.txt
 ```
 
 **Run worker (Terminal 1):**
+
 ```bash
 python worker.py
 ```
 
 **Run client (Terminal 2):**
+
 ```bash
 python client.py
 ```
 
 **View Temporal UI:**
+
 ```
 http://localhost:8233
 ```
@@ -52,6 +66,7 @@ http://localhost:8233
 ### Java Exercises
 
 **Build and run (from exercise directory):**
+
 ```bash
 mvn compile exec:java
 ```
@@ -73,11 +88,12 @@ temporal-warmups/
 ```
 
 Each exercise contains:
+
 - `README.md` or `exercise-XX-README.md` - Exercise goals and instructions
 - Original code without Temporal which needs to be "temporalized"
 - Language-specific implementation folder (`python/`, `java/`, `go/`, `typescript/`)
 - .svg diagrams to show workflow and different concepts (similar to exercise-1300)
--  interactive .html diagram to visually convey data flows, nexus boundaries, data mutation (similar to exercise-1301)
+- interactive .html diagram to visually convey data flows, nexus boundaries, data mutation (similar to exercise-1301)
 - cool and interesting interactive diagrams embedded in the README to help the student learn
 - Step-by-step guidance, acronyms similar to exercise 1300, metaphors, humor
 - The poor implementation is located in /exercise folder along with skeleton of Temporal classes. The /solution folder contains the full solution to the exercise.
@@ -91,12 +107,14 @@ Each exercise contains:
 ### Workflow vs Activity Decision Framework
 
 **Workflow logic (deterministic):**
+
 - Pure calculations (no I/O)
 - Conditional logic based on inputs
 - Data transformations
 - Input validation
 
 **Activity logic (non-deterministic):**
+
 - Database reads/writes
 - API calls to external services
 - File I/O
@@ -107,6 +125,7 @@ Each exercise contains:
 ### Standard Exercise Pattern
 
 **Python:**
+
 ```python
 # workflow.py
 from temporalio import workflow
@@ -148,17 +167,20 @@ worker = Worker(
 Temporal's default JSON converter has limitations:
 
 **Works out of the box:**
+
 - Strings, integers, floats, booleans
 - Lists, dicts
 - Dataclasses (if all fields are serializable)
 
 **Does NOT work (use simple types instead):**
+
 - ❌ Enums → Use `str` instead
 - ❌ `datetime`/`date` objects → Use `str` in ISO 8601 format (YYYY-MM-DD)
 - ❌ `Decimal` types → Use `float` instead
 - ❌ Custom classes → Use dataclasses with serializable fields
 
 **Example:**
+
 ```python
 # ❌ Don't use
 room_type: RoomType  # Enum
@@ -209,7 +231,7 @@ price: float    # 99.99
 - Builder patterns for retry policies and timeouts
 - Dependencies via Maven (pom.xml)
 - Using System.out.println(...) directly in Workflow code is discouraged.
-Temporal Workflows can be replayed many times, and any side effects (like printing to stdout) will be repeated on every replay. This leads to duplicated and misleading logs. Instead, you should use the Java SDK’s replay-safe Workflow logger
+  Temporal Workflows can be replayed many times, and any side effects (like printing to stdout) will be repeated on every replay. This leads to duplicated and misleading logs. Instead, you should use the Java SDK’s replay-safe Workflow logger
 
 #### Parallel Workflow Execution (Java)
 
@@ -228,6 +250,7 @@ CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 ```
 
 **Key Methods:**
+
 - `WorkflowClient.start()` - Fire and forget, returns `WorkflowExecution`
 - `WorkflowClient.execute()` - Returns `CompletableFuture<R>` for result
 
@@ -244,6 +267,7 @@ String workflowId = "payment-" + paymentId; // e.g., "payment-PAY-98765"
 ```
 
 **Benefits:**
+
 - Find workflows easily in Temporal UI by business entity
 - Idempotent: same business ID = same workflow ID (prevents duplicates)
 - Meaningful for logging, debugging, and operations
@@ -251,16 +275,19 @@ String workflowId = "payment-" + paymentId; // e.g., "payment-PAY-98765"
 ## Progression Path
 
 **Week 1-2 (Fundamentals):**
+
 - Exercise #1 (Registration) - Basic workflow/activity pattern
 - Exercise #2.5 (Email) - Muscle memory
 - Exercise #2 (Orders) - Multiple activities, debugging
 
 **Week 3-4 (Real-World Patterns):**
+
 - Exercise #3 (Hotel) - Messy code refactoring, fallback patterns
 - Exercise #5 (Booking) - Saga/compensation patterns
 - Exercise #6 (Support Triage) - **Signals (first introduction!)**, human-in-the-loop, multi-agent AI
 
 **Week 5+ (Advanced):**
+
 - Exercise #6a (Parallel Tickets) - **Parallel workflow execution**, Business identifier workflow IDs
 - Queries (read workflow state)
 - Parent-child workflows
@@ -305,6 +332,10 @@ String workflowId = "payment-" + paymentId; // e.g., "payment-PAY-98765"
 4. Check Temporal UI at http://localhost:8233 to see workflows
 5. Kill worker mid-execution to observe durability/recovery
 
+## Exericse Readme structure
+
+- File Structure section is not valuable
+
 ## Resources
 
 - Full curriculum: `temporal-warmups-curriculum.md`
@@ -314,7 +345,9 @@ String workflowId = "payment-" + paymentId; // e.g., "payment-PAY-98765"
 - Java SDK: https://docs.temporal.io/dev-guide/java
 
 ## Call To Action
+
 Every README should have the following CTA added after the ## Scenario
+
 ## Quickstart Docs By Temporal
 
 🚀 [Get started in a few mins](https://docs.temporal.io/quickstarts?utm_campaign=awareness-nikolay-advolodkin&utm_medium=code&utm_source=github)

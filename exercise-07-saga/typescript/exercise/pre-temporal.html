@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wellness Purchase — Pre-Temporal</title>
+  <style>
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --border:   #30363d;
+      --text:     #e6edf3;
+      --muted:    #7d8590;
+      --blue:     #388bfd;
+      --blue-dim: #1f3a5f;
+      --green:    #3fb950;
+      --green-dim:#1a3a24;
+      --red:      #f85149;
+      --red-dim:  #3d1a1a;
+      --orange:   #d29922;
+      --orange-dim:#3d2e08;
+      --radius:   8px;
+      --font:     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+      --mono:     'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 24px 48px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Header ─────────────────────────────────── */
+    .header {
+      max-width: 920px;
+      margin: 0 auto 28px;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .header p {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .badge {
+      display: inline-block;
+      background: var(--red-dim);
+      color: var(--red);
+      border: 1px solid var(--red);
+      border-radius: 20px;
+      font-size: 11px;
+      padding: 2px 8px;
+      margin-right: 6px;
+      font-weight: 500;
+      vertical-align: middle;
+    }
+
+    /* ── Layout ─────────────────────────────────── */
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ── Timeline ───────────────────────────────── */
+    .timeline-body {
+      padding: 16px;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      position: relative;
+      padding-bottom: 20px;
+    }
+
+    .step:last-child {
+      padding-bottom: 0;
+    }
+
+    /* Connector line */
+    .step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      left: 14px;
+      top: 30px;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+      transition: background 0.3s;
+    }
+
+    .step.done:not(:last-child)::after,
+    .step.failed:not(:last-child)::after {
+      background: var(--border);
+    }
+
+    .step-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+      transition: all 0.25s;
+      position: relative;
+      z-index: 1;
+    }
+
+    .step.active .step-icon {
+      border-color: var(--blue);
+      background: var(--blue-dim);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    .step.done .step-icon {
+      border-color: var(--green);
+      background: var(--green-dim);
+    }
+
+    .step.failed .step-icon {
+      border-color: var(--red);
+      background: var(--red-dim);
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(56,139,253,0.4); }
+      50%       { box-shadow: 0 0 0 6px rgba(56,139,253,0); }
+    }
+
+    .step-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .step-title {
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 2px;
+      transition: color 0.25s;
+    }
+
+    .step.active  .step-title { color: var(--blue); }
+    .step.done    .step-title { color: var(--green); }
+    .step.failed  .step-title { color: var(--red); }
+
+    .step-desc {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .step-detail {
+      margin-top: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 8px;
+      display: none;
+    }
+
+    .step.done .step-detail,
+    .step.failed .step-detail {
+      display: block;
+    }
+
+    .step.failed .step-detail {
+      border-color: var(--red-dim);
+      color: var(--red);
+    }
+
+    /* ── State Panel ────────────────────────────── */
+    .state-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .record {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      transition: all 0.3s;
+    }
+
+    .record-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .record-name {
+      font-weight: 600;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .record-status {
+      font-size: 11px;
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+
+    .record-id {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* Record states */
+    .record.empty {
+      opacity: 0.4;
+    }
+
+    .record.active {
+      border-color: var(--green);
+      background: var(--green-dim);
+    }
+
+    .record.active .record-status {
+      background: rgba(63,185,80,0.2);
+      color: var(--green);
+    }
+
+    .record.orphaned {
+      border-color: var(--orange);
+      background: var(--orange-dim);
+      animation: orphan-pulse 2s ease-in-out infinite;
+    }
+
+    .record.orphaned .record-status {
+      background: rgba(210,153,34,0.2);
+      color: var(--orange);
+    }
+
+    @keyframes orphan-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(210,153,34,0.3); }
+      50%       { box-shadow: 0 0 0 5px rgba(210,153,34,0); }
+    }
+
+    .record.cancelled {
+      opacity: 0.5;
+      text-decoration: line-through;
+    }
+
+    .record.success {
+      border-color: var(--green);
+    }
+
+    /* ── Outcome Banner ─────────────────────────── */
+    .outcome {
+      display: none;
+      max-width: 920px;
+      margin: 0 auto 20px;
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      font-size: 13px;
+      border: 1px solid;
+    }
+
+    .outcome.success {
+      background: var(--green-dim);
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .outcome.failure {
+      background: var(--red-dim);
+      border-color: var(--red);
+      color: var(--text);
+    }
+
+    .outcome.failure strong {
+      color: var(--red);
+    }
+
+    .outcome h3 {
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .outcome ul {
+      padding-left: 18px;
+    }
+
+    .outcome li {
+      margin-bottom: 4px;
+      color: var(--orange);
+      font-size: 12px;
+    }
+
+    .outcome.success { display: none; }
+
+    /* ── Controls ───────────────────────────────── */
+    .controls {
+      max-width: 920px;
+      margin: 0 auto 16px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    button {
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px 18px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    #nextBtn {
+      background: var(--blue);
+      color: #fff;
+    }
+
+    #nextBtn:hover:not(:disabled) {
+      background: #4da3ff;
+    }
+
+    #nextBtn:disabled {
+      background: var(--border);
+      color: var(--muted);
+      cursor: not-allowed;
+    }
+
+    #resetBtn {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    #resetBtn:hover {
+      color: var(--text);
+      border-color: var(--muted);
+    }
+
+    .step-counter {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .toggle-label input[type="checkbox"] {
+      accent-color: var(--red);
+      width: 13px;
+      height: 13px;
+      cursor: pointer;
+    }
+
+    .toggle-label:has(input:checked) {
+      color: var(--red);
+    }
+
+    /* ── Failure note (inside state panel) ─────────── */
+    .failure-note {
+      display: none;
+      background: var(--orange-dim);
+      border: 1px solid var(--orange);
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-size: 12px;
+    }
+
+    .failure-note strong { color: var(--orange); }
+
+    .failure-note ul {
+      margin-top: 6px;
+      padding-left: 16px;
+    }
+
+    .failure-note li {
+      margin-bottom: 3px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────────── -->
+  <div class="header">
+    <h1><span class="badge">PRE-TEMPORAL</span> Wellness Purchase — Broken Process</h1>
+    <p>Step through the process. Watch what happens to system state when payment fails.</p>
+  </div>
+
+  <!-- ── Controls ─────────────────────────────────────────────── -->
+  <div class="controls">
+    <button id="nextBtn">Next Step →</button>
+    <button id="resetBtn">↺ Reset</button>
+    <label class="toggle-label">
+      <input type="checkbox" id="forceFailToggle" checked />
+      Force payment failure
+    </label>
+    <span class="step-counter" id="stepCounter">Step 0 of 5</span>
+  </div>
+
+  <!-- ── Two-column layout ────────────────────────────────────── -->
+  <div class="layout">
+
+    <!-- Left: Timeline -->
+    <div class="panel">
+      <div class="panel-header">⚡ Process Flow</div>
+      <div class="timeline-body">
+
+        <div class="step" id="step-0">
+          <div class="step-icon">1</div>
+          <div class="step-content">
+            <div class="step-title">Submit Intake Form</div>
+            <div class="step-desc">Patient submits product + dosage info. Creates an intake record in the DB.</div>
+            <div class="step-detail" id="detail-0"></div>
+          </div>
+        </div>
+
+        <div class="step" id="step-1">
+          <div class="step-icon">2</div>
+          <div class="step-content">
+            <div class="step-title">Wait for Provider Approval</div>
+            <div class="step-desc">A healthcare provider must review the request. In this version: simulated with a 1-second wait. <em>No real signal mechanism exists.</em></div>
+            <div class="step-detail" id="detail-1"></div>
+          </div>
+        </div>
+
+        <div class="step" id="step-2">
+          <div class="step-icon">3</div>
+          <div class="step-content">
+            <div class="step-title">Record Approval</div>
+            <div class="step-desc">Approval is stored in the DB. Now the intake + approval records both exist.</div>
+            <div class="step-detail" id="detail-2"></div>
+          </div>
+        </div>
+
+        <div class="step" id="step-3">
+          <div class="step-icon">4</div>
+          <div class="step-content">
+            <div class="step-title">Process Payment</div>
+            <div class="step-desc">Charges the patient's card.</div>
+            <div class="step-detail" id="detail-3"></div>
+          </div>
+        </div>
+
+        <div class="step" id="step-4">
+          <div class="step-icon">5</div>
+          <div class="step-content">
+            <div class="step-title">Send Prescription</div>
+            <div class="step-desc">Delivers the prescription to the patient. Only reached if payment succeeded.</div>
+            <div class="step-detail" id="detail-4"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Right: State Panel -->
+    <div class="panel">
+      <div class="panel-header">🗄️ System State (Database Records)</div>
+      <div class="state-body">
+
+        <div class="record empty" id="rec-intake">
+          <div class="record-header">
+            <div class="record-name">📋 Intake Form</div>
+            <div class="record-status" id="rec-intake-status">—</div>
+          </div>
+          <div class="record-id" id="rec-intake-id">No record yet</div>
+        </div>
+
+        <div class="record empty" id="rec-approval">
+          <div class="record-header">
+            <div class="record-name">✅ Approval</div>
+            <div class="record-status" id="rec-approval-status">—</div>
+          </div>
+          <div class="record-id" id="rec-approval-id">No record yet</div>
+        </div>
+
+        <div class="record empty" id="rec-payment">
+          <div class="record-header">
+            <div class="record-name">💳 Payment</div>
+            <div class="record-status" id="rec-payment-status">—</div>
+          </div>
+          <div class="record-id" id="rec-payment-id">No record yet</div>
+        </div>
+
+        <div class="record empty" id="rec-rx">
+          <div class="record-header">
+            <div class="record-name">💊 Prescription</div>
+            <div class="record-status" id="rec-rx-status">—</div>
+          </div>
+          <div class="record-id" id="rec-rx-id">No record yet</div>
+        </div>
+
+        <div class="failure-note" id="failureNote">
+          <strong>⚠️ Orphaned state — nothing cleaned up</strong>
+          <ul>
+            <li>The intake form is still "active" in the database</li>
+            <li>The approval was never revoked — the provider thinks it's still valid</li>
+            <li>The patient may believe they have an approved prescription</li>
+            <li>No retry will run automatically — the process is just stuck</li>
+          </ul>
+          <p style="margin-top:8px; color: var(--muted)">
+            This is what Temporal + the <strong style="color:var(--orange)">Saga pattern</strong> solves:
+            compensation activities undo each step in reverse order when something fails.
+          </p>
+        </div>
+
+        <div style="margin-top:8px; padding:10px; background:var(--bg); border-radius:6px; border:1px solid var(--border)">
+          <div style="font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px">Legend</div>
+          <div style="font-size:11px; color:var(--muted); display:flex; flex-direction:column; gap:4px;">
+            <span style="color:var(--green)">● Active — record exists and is valid</span>
+            <span style="color:var(--orange)">● Orphaned — stuck, nothing will clean it up</span>
+            <span>● Empty — not created yet</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Script ───────────────────────────────────────────────── -->
+  <script>
+    // ── Helpers ────────────────────────────────────────────────
+    function uid() {
+      return Math.random().toString(36).slice(2, 10);
+    }
+
+    function sleep(ms) {
+      return new Promise(r => setTimeout(r, ms));
+    }
+
+    // ── State ──────────────────────────────────────────────────
+    let currentStep = -1;
+    let running = false;
+    let willFail = false;
+
+    let ids = { intake: null, approval: null, payment: null, rx: null };
+
+    const TOTAL_STEPS = 5;
+
+    // ── Step definitions ───────────────────────────────────────
+    // Each step: { run() → { detail, failed? } }
+    const steps = [
+      {
+        run() {
+          ids.intake = `intake-${uid()}`;
+          setRecord('intake', 'active', 'Created', ids.intake);
+          return { detail: `Created: ${ids.intake}` };
+        }
+      },
+      {
+        run() {
+          return { detail: `Simulated — no real signal mechanism. Provider "approved" after 1s wait.` };
+        }
+      },
+      {
+        run() {
+          ids.approval = `approval-${uid()}`;
+          setRecord('approval', 'active', 'Recorded', ids.approval);
+          return { detail: `Created: ${ids.approval}` };
+        }
+      },
+      {
+        run() {
+          if (willFail) {
+            setRecord('payment', 'orphaned', 'FAILED', 'payment declined');
+            // Mark intake + approval as orphaned
+            setRecord('intake',   'orphaned', '⚠ Orphaned', ids.intake);
+            setRecord('approval', 'orphaned', '⚠ Orphaned', ids.approval);
+            document.getElementById('failureNote').style.display = 'block';
+            return { detail: `Error: Payment declined — card rejected`, failed: true };
+          }
+          ids.payment = `payment-${uid()}`;
+          setRecord('payment', 'active', 'Processed', ids.payment);
+          return { detail: `Processed: ${ids.payment}` };
+        }
+      },
+      {
+        run() {
+          ids.rx = `rx-${uid()}`;
+          setRecord('rx', 'active', 'Sent', ids.rx);
+          return { detail: `Sent: ${ids.rx}` };
+        }
+      },
+    ];
+
+    // ── DOM helpers ────────────────────────────────────────────
+    function setStepState(i, state) {
+      const el = document.getElementById(`step-${i}`);
+      el.className = `step ${state}`;
+      const icon = el.querySelector('.step-icon');
+      const icons = { pending: i + 1, active: '…', done: '✓', failed: '✗' };
+      icon.textContent = icons[state] ?? (i + 1);
+    }
+
+    function setStepDetail(i, text) {
+      document.getElementById(`detail-${i}`).textContent = text;
+    }
+
+    function setRecord(key, stateClass, statusText, idText) {
+      const rec = document.getElementById(`rec-${key}`);
+      rec.className = `record ${stateClass}`;
+      document.getElementById(`rec-${key}-status`).textContent = statusText;
+      document.getElementById(`rec-${key}-id`).textContent = idText;
+    }
+
+    function updateCounter() {
+      const done = Math.max(0, currentStep);
+      document.getElementById('stepCounter').textContent =
+        `Step ${done} of ${TOTAL_STEPS}`;
+    }
+
+    // ── Core logic ─────────────────────────────────────────────
+    async function advance() {
+      if (running) return;
+      running = true;
+
+      const nextBtn = document.getElementById('nextBtn');
+      nextBtn.disabled = true;
+
+      currentStep++;
+      updateCounter();
+
+      if (currentStep >= TOTAL_STEPS) {
+        running = false;
+        return;
+      }
+
+      setStepState(currentStep, 'active');
+
+      // Brief "running" pause for effect
+      await sleep(600);
+
+      const result = steps[currentStep].run();
+
+      if (result.failed) {
+        setStepState(currentStep, 'failed');
+        setStepDetail(currentStep, result.detail);
+        // Remaining steps stay pending / skipped
+        nextBtn.disabled = true;
+        nextBtn.textContent = 'Process failed';
+        running = false;
+        updateCounter();
+        return;
+      }
+
+      setStepState(currentStep, 'done');
+      setStepDetail(currentStep, result.detail);
+
+      const isLast = currentStep === TOTAL_STEPS - 1;
+      if (isLast) {
+        nextBtn.disabled = true;
+        nextBtn.textContent = '✓ Complete';
+      } else {
+        nextBtn.disabled = false;
+        nextBtn.textContent = 'Next Step →';
+      }
+
+      running = false;
+      updateCounter();
+    }
+
+    function reset() {
+      currentStep = -1;
+      ids = { intake: null, approval: null, payment: null, rx: null };
+
+      // Use the toggle if checked, otherwise 30% random chance
+      const forced = document.getElementById('forceFailToggle').checked;
+      willFail = forced || Math.random() < 0.3;
+
+      for (let i = 0; i < TOTAL_STEPS; i++) {
+        setStepState(i, 'pending');
+        document.getElementById(`detail-${i}`).textContent = '';
+      }
+
+      ['intake', 'approval', 'payment', 'rx'].forEach(key => {
+        document.getElementById(`rec-${key}`).className = 'record empty';
+        document.getElementById(`rec-${key}-status`).textContent = '—';
+        document.getElementById(`rec-${key}-id`).textContent = 'No record yet';
+      });
+
+      document.getElementById('failureNote').style.display = 'none';
+
+      const nextBtn = document.getElementById('nextBtn');
+      nextBtn.disabled = false;
+      nextBtn.textContent = 'Next Step →';
+      updateCounter();
+    }
+
+    // ── Wire up buttons ────────────────────────────────────────
+    document.getElementById('nextBtn').addEventListener('click', advance);
+    document.getElementById('resetBtn').addEventListener('click', reset);
+
+    // ── Initial state ──────────────────────────────────────────
+    reset();
+  </script>
+
+</body>
+</html>

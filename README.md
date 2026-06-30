@@ -11,8 +11,10 @@ This repository contains "warm-up" exercises where I take ordinary code and temp
 ## 📚 Exercise Structure
 
 Each exercise includes:
-- **Original code**: The "before" version (messy, procedural, no durability)
-- **Temporalized version**: The "after" version with proper workflow/activity separation
+- **Runnable application baseline**: The "before" version (messy, procedural, no durability)
+- **Ready-made application logic**: Domain services, fake databases, API/payment/email/LLM stubs, and models are provided so you do not burn practice time writing ordinary plumbing
+- **Temporal starter**: The exercise code leaves TODOs only around Temporal concepts: workflow/activity boundaries, activity options, orchestration, retries, signals, queries, timers, child workflows, compensation, workers, and clients
+- **Temporalized solution**: The "after" version with proper workflow/activity separation
 - **Multiple languages**: Python, Java, Go, and (eventually) TypeScript implementations
 - **Progressive complexity**: Starting simple, adding real-world patterns over time
 
@@ -87,6 +89,10 @@ temporal-warmups/
 │   └── src/main/java/
 │       ├── exercise/              # Pre-Temporal baseline
 │       └── solution/temporal/     # Temporal solution with signals
+├── exercise-07-saga/             # TypeScript saga + signal workflow
+│   └── typescript/
+│       ├── exercise/              # Pre-Temporal baseline + skeleton
+│       └── solution/              # Reference implementation
 └── README.md
 ```
 
@@ -148,6 +154,8 @@ This is a **production-critical pattern** for building reliable, auditable syste
 ### Daily Practice
 - Pick an exercise
 - Time yourself (aim for ~1 hour)
+- Treat the provided business logic as already owned by another team
+- Spend your implementation time on making that logic durable with Temporal
 - Focus on one language at a time
 - Review the solution afterward
 
@@ -203,9 +211,9 @@ These exercises are part of a larger learning journey to:
 | 04 - Registration (Java) | ⬜ | ✅ | ⬜ | ⬜ | Java-specific patterns |
 | 05 - Travel Booking | ✅ | ⬜ | ⬜ | ⬜ | Saga/compensation patterns |
 | 06 - Support Triage | ⬜ | ✅ | ⬜ | ⬜ | **Signals (NEW!)**, human-in-the-loop, multi-agent AI |
+| 07 - Saga Wellness Purchase | ⬜ | ⬜ | ⬜ | ✅ | Saga compensation + TypeScript signals |
 
 ---
 
 **Status**: Active development (Dec 2024 - Jan 2025)
 ```
-
