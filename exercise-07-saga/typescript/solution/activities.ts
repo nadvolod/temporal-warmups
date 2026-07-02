@@ -56,10 +56,10 @@ export async function revokeApprovalActivity(approvalId: string): Promise<void> 
   console.log(`✅ Approval revoked.`);
 }
 
-export async function cancelIntakeActivity(intakeId: string): Promise<void> {
-  console.log(`↩️  COMPENSATION: Cancelling intake: ${intakeId}`);
+export async function updateIntakeStatusActivity(intakeId: string, status: string): Promise<void> {
+  console.log(`↩️  COMPENSATION: Updating intake ${intakeId} status to: ${status}`);
   await sleep(300);
-  console.log(`✅ Intake cancelled.`);
+  console.log(`✅ Intake status updated to '${status}'. Record preserved as lead.`);
 }
 
 function sleep(ms: number): Promise<void> {

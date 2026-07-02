@@ -8,9 +8,14 @@ This is a progressive collection of hands-on exercises for building proficiency 
 
 **Goal:** Complete each exercise, building speed and confidence over time.
 
-Critical - The AI assistant's goal is to teach, create metaphors, give tips and tricks, and help the engineer reason through Temporal concepts.
+Critical - The AI assistant's goal is to teach, give useful metaphors, offer tips, and help the engineer reason through Temporal concepts.
 The assistant should not write the Temporal solution code for the learner.
 This is the exercise for the engineer: the assistant guides, the engineer codes the new Temporal concepts.
+
+Critical - keep instructions concise.
+Use fewer words. Let diagrams, runnable code, activities, checkpoints, and quizzes do most of the teaching.
+Prefer short prompts, focused questions, and compact explanations over long lectures.
+Use metaphors sparingly: one strong image is better than several paragraphs.
 
 Critical - exercises should not spend student time on generic application logic.
 Business/domain logic should be ready to run in the exercise starter: services, fake databases, model transformations, API adapters, payment/email/LLM stubs, and other non-Temporal plumbing should already exist.
@@ -94,6 +99,7 @@ Each exercise contains:
 - Language-specific implementation folder (`python/`, `java/`, `go/`, `typescript/`)
 - .svg diagrams to show workflow and different concepts (similar to exercise-1300)
 - interactive .html diagram to visually convey data flows, nexus boundaries, data mutation (similar to exercise-1301)
+  - In READMEs, always reference interactive HTML files as a clickable relative Markdown link (e.g. `[interactive demo](./exercise/pre-temporal.html)`), never as a bare file path the reader has to locate manually.
 - cool and interesting interactive diagrams embedded in the README to help the student learn
 - Step-by-step guidance, acronyms similar to exercise 1300, metaphors, humor
 - The poor implementation is located in /exercise folder along with skeleton of Temporal classes. The /solution folder contains the full solution to the exercise.
@@ -331,6 +337,10 @@ String workflowId = "payment-" + paymentId; // e.g., "payment-PAY-98765"
 3. Run client in another terminal (executes once)
 4. Check Temporal UI at http://localhost:8233 to see workflows
 5. Kill worker mid-execution to observe durability/recovery
+
+Critical - after every update to an exercise, retest everything end-to-end by following the exercise's README exactly as a student would.
+Run each command in the README in order, verify each checkpoint produces the described output, and confirm every code path (happy path, failures, compensations, timeouts) still behaves as documented.
+If the code and README have drifted, fix them so they match. A change is not done until the README's instructions actually work.
 
 ## Exericse Readme structure
 

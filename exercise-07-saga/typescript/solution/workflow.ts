@@ -18,7 +18,7 @@ const {
   processPaymentActivity,
   sendPrescriptionActivity,
   revokeApprovalActivity,
-  cancelIntakeActivity,
+  updateIntakeStatusActivity,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: '5 minutes',
   retry: { maximumAttempts: 3 },
@@ -47,14 +47,14 @@ export async function wellnessPurchaseWorkflow(intake: WellnessIntake): Promise<
 
     if (!receivedSignal) {
       // Timed out — no signal arrived within the window
-      await cancelIntakeActivity(intakeId!); // intakeId is set after step 1
-      return { status: 'expired', message: 'Approval timed out. Intake cancelled.' };
+      await updateIntakeStatusActivity(intakeId!, 'expired');
+      return { status: 'expired', intakeId: intakeId!, message: 'Approval timed out. Lead preserved for follow-up.' };
     }
 
     if (!approval!.approved) {
       // Signal received but provider denied
-      await cancelIntakeActivity(intakeId!); // intakeId is set after step 1
-      return { status: 'rejected', message: 'Provider denied the prescription. Intake cancelled.' };
+      await updateIntakeStatusActivity(intakeId!, 'rejected');
+      return { status: 'rejected', intakeId: intakeId!, message: 'Provider denied the prescription. Lead preserved for review.' };
     }
 
     // Step 3: Record the approval
@@ -78,8 +78,8 @@ export async function wellnessPurchaseWorkflow(intake: WellnessIntake): Promise<
 
     // CancellationScope.nonCancellable ensures compensations run even if the workflow is cancelled
     await CancellationScope.nonCancellable(async () => {
-      if (approvalId) await revokeApprovalActivity(approvalId); // compensation 1 (most recent first)
-      if (intakeId) await cancelIntakeActivity(intakeId);        // compensation 2
+      if (approvalId) await revokeApprovalActivity(approvalId);                        // compensation 1 (most recent first)
+      if (intakeId) await updateIntakeStatusActivity(intakeId, 'payment-failed');     // compensation 2 — preserve lead
     });
 
     throw err;

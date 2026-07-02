@@ -20,9 +20,13 @@ import {
   proxyActivities,
   log,
   CancellationScope,
-} from '@temporalio/workflow';
-import type * as activities from './activities';
-import type { WellnessIntake, ApprovalDecision, PurchaseResult } from './models';
+} from "@temporalio/workflow";
+import type * as activities from "./activities";
+import type {
+  WellnessIntake,
+  ApprovalDecision,
+  PurchaseResult,
+} from "./models";
 
 // ─── SIGNAL DEFINITION ────────────────────────────────────────────────────────
 //
@@ -33,7 +37,9 @@ import type { WellnessIntake, ApprovalDecision, PurchaseResult } from './models'
 //
 // This is exported so approver.ts can import and use it.
 //
-export const approveWellnessPurchaseSignal = defineSignal<[ApprovalDecision]>('approveWellnessPurchase');
+export const approveWellnessPurchaseSignal = defineSignal<[ApprovalDecision]>(
+  "approveWellnessPurchase",
+);
 
 // ─── ACTIVITY PROXIES ─────────────────────────────────────────────────────────
 //
@@ -49,15 +55,19 @@ const {
   processPaymentActivity,
   sendPrescriptionActivity,
   revokeApprovalActivity,
-  cancelIntakeActivity,
+  updateIntakeStatusActivity,
 } = proxyActivities<typeof activities>({
   // TODO: fill in startToCloseTimeout and retry options
 });
 
 // ─── WORKFLOW ─────────────────────────────────────────────────────────────────
 
-export async function wellnessPurchaseWorkflow(intake: WellnessIntake): Promise<PurchaseResult> {
-  log.info('Starting wellness purchase workflow', { patientId: intake.patientId });
+export async function wellnessPurchaseWorkflow(
+  intake: WellnessIntake,
+): Promise<PurchaseResult> {
+  log.info("Starting wellness purchase workflow", {
+    patientId: intake.patientId,
+  });
 
   // ── SIGNAL HANDLER SETUP ─────────────────────────────────────────────────
   //
@@ -98,10 +108,10 @@ export async function wellnessPurchaseWorkflow(intake: WellnessIntake): Promise<
     // In production you'd use something like '24 hours' or '7 days'.
     //
     // After waiting:
-    //   - If !receivedSignal (timed out): cancel intake, return { status: 'expired', ... }
-    //   - If !approval.approved (denied):  cancel intake, return { status: 'rejected', ... }
+    //   - If !receivedSignal (timed out): updateIntakeStatusActivity(intakeId!, 'expired'),  return { status: 'expired', ... }
+    //   - If !approval.approved (denied):  updateIntakeStatusActivity(intakeId!, 'rejected'), return { status: 'rejected', ... }
 
-    log.info('Waiting for provider approval signal...');
+    log.info("Waiting for provider approval signal...");
     // TODO: implement the condition wait and handle timeout/rejection
 
     // ── STEP 3: Record the approval ─────────────────────────────────────────
@@ -129,22 +139,24 @@ export async function wellnessPurchaseWorkflow(intake: WellnessIntake): Promise<
     //
     // TODO: Return a PurchaseResult with status: 'completed'.
 
-    throw new Error('TODO: implement workflow steps (remove this line when done)');
+    throw new Error(
+      "TODO: implement workflow steps (remove this line when done)",
+    );
   } catch (err) {
     // ── SAGA COMPENSATION ─────────────────────────────────────────────────────
     //
     // TODO: Run compensations in REVERSE ORDER.
     //
     // Most recent activity first:
-    //   1. if (approvalId) await revokeApprovalActivity(approvalId);   ← undo step 3
-    //   2. if (intakeId)   await cancelIntakeActivity(intakeId);        ← undo step 1
+    //   1. if (approvalId) await revokeApprovalActivity(approvalId);                          ← undo step 3
+    //   2. if (intakeId)   await updateIntakeStatusActivity(intakeId, 'payment-failed');      ← preserve lead
     //
     // Wrap in CancellationScope.nonCancellable so compensations run even if
     // the workflow itself gets cancelled.
     //
     // await CancellationScope.nonCancellable(async () => {
     //   if (approvalId) await revokeApprovalActivity(approvalId);
-    //   if (intakeId)   await cancelIntakeActivity(intakeId);
+    //   if (intakeId)   await updateIntakeStatusActivity(intakeId, 'payment-failed');
     // });
 
     throw err;

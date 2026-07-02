@@ -30,7 +30,7 @@ async function run() {
 
   console.log('\n⏳ Workflow running. Send approval with:');
   console.log(`   npx ts-node approver.ts ${workflowId}\n`);
-  console.log('   Or set FORCE_PAYMENT_FAIL=true before approving to test saga compensation.\n');
+  console.log('   To test saga compensation, restart the worker with FORCE_PAYMENT_FAIL=true.\n');
 
   const result = await handle.result();
 

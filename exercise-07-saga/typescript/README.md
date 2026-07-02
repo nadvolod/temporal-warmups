@@ -35,7 +35,7 @@ This is called **orphaned state** — and it's a nightmare in distributed system
 Run the broken version first to feel the pain. Two options:
 
 **Option A — Interactive visual demo (recommended):**
-Open `exercise-07-saga/typescript/exercise/pre-temporal.html` in your browser. Step through the process with "Next Step" and watch database records become orphaned when payment fails.
+Open the [interactive pre-Temporal demo](./exercise/pre-temporal.html) in your browser. Step through the process with "Next Step" and watch database records become orphaned when payment fails.
 
 **Option B — Terminal:**
 ```bash
@@ -52,7 +52,7 @@ Run it a few times. About 30% of the time you'll see the failure. Notice that no
 
 A durable Temporal workflow around application logic that is already provided.
 
-The business operations are ready-made activities: submit intake, record approval, process payment, send prescription, revoke approval, and cancel intake. You will read them like external system adapters, then focus your typing on Temporal: activity proxy options, signal handling, workflow orchestration, saga state, and compensation order.
+The business operations are ready-made activities: submit intake, record approval, process payment, send prescription, revoke approval, and update intake status. You will read them like external system adapters, then focus your typing on Temporal: activity proxy options, signal handling, workflow orchestration, saga state, and compensation order.
 
 This keeps the warmup pointed at the skill you came here to practice. No one needs to spend 20 minutes writing fake `sleep()` calls before the orchestra shows up.
 
@@ -70,8 +70,8 @@ recordApproval()
   ↓
 processPayment()          ← 30% chance of failure!
   ↓ ON FAILURE:
-    ↩️  revokeApproval()  ← compensation 1 (most recent first!)
-    ↩️  cancelIntake()    ← compensation 2
+    ↩️  revokeApproval()                    ← compensation 1 (most recent first!)
+    ↩️  updateIntakeStatus('payment-failed') ← compensation 2 — lead preserved
   ↓ ON SUCCESS:
 sendPrescription()
   ↓ Done ✅
@@ -91,32 +91,6 @@ The magic: **Temporal guarantees compensations run** even if the worker crashes 
 
 ---
 
-## File Structure
-
-```
-exercise-07-saga/
-└── typescript/
-    ├── README.md                   ← you are here
-    │
-    ├── exercise/
-    │   ├── pre-temporal.html       ← start here: interactive visual demo
-    │   ├── pre-temporal.ts         ← terminal version of the broken code
-    │   └── skeleton/
-    │       ├── models.ts           ← given (data types)
-    │       ├── activities.ts       ← given (application logic adapters)
-    │       ├── workflow.ts         ← TODO: implement the saga + signal workflow
-    │       ├── worker.ts           ← given (register and run worker)
-    │       ├── client.ts           ← given (start the workflow)
-    │       ├── approver.ts         ← given (send the signal)
-    │       ├── package.json
-    │       └── tsconfig.json
-    │
-    └── solution/                   ← reference implementation
-        └── (same files, fully implemented)
-```
-
----
-
 ## Prerequisites
 
 - Node.js 18+
@@ -125,24 +99,11 @@ exercise-07-saga/
 
 ---
 
-## Setup
-
-**Terminal 1 — Temporal dev server:**
-```bash
-temporal server start-dev
-```
-
-**Terminal 2 — Your work directory:**
-```bash
-cd exercise-07-saga/typescript/exercise/skeleton
-npm install
-```
-
----
-
 ## Step 1: Run the Broken Version
 
 ```bash
+cd exercise-07-saga/typescript/exercise/skeleton
+npm install
 npm run pre-temporal
 ```
 
@@ -163,7 +124,7 @@ A **Saga** handles that reality by pairing important forward steps with compensa
 ```
 Forward step                  Compensation if a later step fails
 ───────────────────────────   ──────────────────────────────────
-submitIntakeFormActivity      cancelIntakeActivity
+submitIntakeFormActivity      updateIntakeStatusActivity('expired'|'rejected'|'payment-failed')
 recordApprovalActivity        revokeApprovalActivity
 processPaymentActivity        refundPaymentActivity (not needed in this version)
 sendPrescriptionActivity      final step, no later failure in this exercise
@@ -171,9 +132,23 @@ sendPrescriptionActivity      final step, no later failure in this exercise
 
 The goal is not to rewind time perfectly. The goal is to leave the business in a truthful, repairable state.
 
-In this exercise, if payment fails after provider approval, the workflow should not leave an approved-but-unpaid prescription sitting around. The saga says: "we recorded approval, so now we must revoke it; we submitted intake, so now we must cancel it."
+Notice that the intake record is **never deleted** — it's a lead. Every failure path marks the record with a status (`expired`, `rejected`, or `payment-failed`) so downstream systems can act on it: follow up with the patient, retry payment, or route to a dunning workflow.
 
 Temporal makes sagas practical because the workflow history remembers which steps completed. Even if the worker crashes, the workflow can resume and continue the compensation path instead of relying on somebody's TODO comment, dashboard refresh, or heroic memory.
+
+---
+
+## Setup for Temporal Steps
+
+**Terminal 1 — Temporal dev server:**
+```bash
+temporal server start-dev
+```
+
+**Terminal 2 — your work directory (already done in Step 1):**
+```bash
+cd exercise-07-saga/typescript/exercise/skeleton
+```
 
 ---
 
@@ -189,7 +164,7 @@ Open `activities.ts`. The 6 activity functions are already implemented for you:
 
 **Compensation activities** (the cleanup path):
 - `revokeApprovalActivity` — undo the approval record
-- `cancelIntakeActivity` — undo the intake form submission
+- `updateIntakeStatusActivity` — mark the intake as `expired`, `rejected`, or `payment-failed` (record is preserved as a lead)
 
 Before moving on, use the activities as a tiny quiz. Read the function names and signatures, make your guess, then expand the answer.
 
@@ -203,9 +178,9 @@ All six activities represent external side effects:
 - `processPaymentActivity` talks to a payment system
 - `sendPrescriptionActivity` sends the prescription
 - `revokeApprovalActivity` changes the approval record
-- `cancelIntakeActivity` changes the intake record
+- `updateIntakeStatusActivity` marks the intake record with a status (lead preserved)
 
-That is the muscle. Activities are the delivery trucks, payment terminal, medical records desk, and cancellation desk. The workflow is the flight plan and black box: it defines the route, remembers which legs completed, and knows the safe return path if a later step fails.
+That is the muscle. Activities are the delivery trucks, payment terminal, and medical records desk. The workflow is the flight plan and black box: it defines the route, remembers which legs completed, and knows the safe repair path if a later step fails.
 </details>
 
 <details>
@@ -227,9 +202,9 @@ Once approval has been recorded, the workflow stores the ID as saga state. If pa
 <details>
 <summary><strong>Q4.</strong> Which activities are compensations, and when should they run?</summary>
 
-`revokeApprovalActivity` and `cancelIntakeActivity` are compensations, not happy-path steps.
+`revokeApprovalActivity` and `updateIntakeStatusActivity` are compensations, not happy-path steps.
 
-They should run only after a later step fails, and only if the thing they undo actually happened. That is why the workflow tracks `approvalId` and `intakeId` instead of blindly calling every cleanup function.
+Note they do different kinds of repair: `revokeApprovalActivity` truly *undoes* the approval, while `updateIntakeStatusActivity` *keeps* the intake and just records how it ended. Both should run only after a later step fails, and only if the step they repair actually happened. That is why the workflow tracks `approvalId` and `intakeId` instead of blindly calling every repair function.
 </details>
 
 <details>
@@ -240,12 +215,12 @@ Ask: **if this activity succeeds, and a later step fails, what bad state is left
 Activities usually need compensation when they create, reserve, approve, charge, notify, or otherwise commit durable business state that would become misleading or harmful if the workflow does not finish.
 
 In this exercise:
-- `submitIntakeFormActivity` needs `cancelIntakeActivity` because an unfinished purchase should not leave an active intake behind
+- `submitIntakeFormActivity` is paired with `updateIntakeStatusActivity` — but notice we deliberately *keep* the intake. It's a lead worth money. The repair is to stamp it (`expired`, `rejected`, `payment-failed`) so another process can follow up, retry payment, or start a dunning workflow. Deleting it would throw away a real customer.
 - `recordApprovalActivity` needs `revokeApprovalActivity` because approval without payment would make the patient and provider records lie
 - `processPaymentActivity` would need a refund compensation if a later step after payment could fail
 - `sendPrescriptionActivity` is the final happy-path step here, so there is no later failure to compensate for in this version
 
-Not every activity needs a perfect undo. Sometimes the compensation is "mark as cancelled," "release the hold," "send a correction," or "open a manual review task." The key is to design the business repair path before the failure happens.
+Not every compensation is an undo. Sometimes the right repair is "mark as payment-failed," "release the hold," "send a correction," or "open a manual review task" — leaving durable business value in place while recording the truth. The key is to design the business repair path before the failure happens.
 </details>
 
 **Checkpoint 1:** Start the worker and verify it registers without errors:
@@ -301,8 +276,8 @@ Now implement the full workflow body in `workflow.ts`:
 **Compensation path (the catch block):**
 ```typescript
 await CancellationScope.nonCancellable(async () => {
-  if (approvalId) await revokeApprovalActivity(approvalId); // most recent first
-  if (intakeId)   await cancelIntakeActivity(intakeId);
+  if (approvalId) await revokeApprovalActivity(approvalId);                    // most recent first
+  if (intakeId)   await updateIntakeStatusActivity(intakeId, 'payment-failed'); // lead preserved
 });
 throw err; // re-throw so the workflow is marked failed
 ```
@@ -325,10 +300,19 @@ npx ts-node approver.ts <workflow-id>
 
 The workflow should complete with `status: COMPLETED` (about 70% of the time — the other 30% payment fails and you'll see compensations).
 
-**Checkpoint 4:** Force the compensation chain:
+**Checkpoint 4:** Force the compensation chain.
+
+`processPaymentActivity` reads `FORCE_PAYMENT_FAIL`, and **activities run in the worker process** — so the env var must be set on the *worker*, not the client. Restart your worker with it:
+
+```bash
+# Terminal 1 — stop the worker (Ctrl+C) and restart it with the flag
+FORCE_PAYMENT_FAIL=true npx ts-node worker.ts
+```
+
+Then start a workflow and approve it as usual:
 ```bash
 # Terminal 2
-FORCE_PAYMENT_FAIL=true npx ts-node client.ts
+npx ts-node client.ts
 # Copy the workflow ID
 
 # Terminal 3
@@ -337,12 +321,12 @@ npx ts-node approver.ts <workflow-id>
 
 Open Temporal UI → find your workflow → Event History. You should see:
 ```
-✅ submitIntakeFormActivity   → completed
-✅ recordApprovalActivity     → completed
-❌ processPaymentActivity     → failed
+✅ submitIntakeFormActivity      → completed
+✅ recordApprovalActivity        → completed
+❌ processPaymentActivity        → failed
    ↓ Compensation begins
-✅ revokeApprovalActivity     → completed  ← most recent step, undone first
-✅ cancelIntakeActivity       → completed
+✅ revokeApprovalActivity        → completed  ← most recent step, undone first
+✅ updateIntakeStatusActivity    → completed  ← lead preserved as 'payment-failed'
 ❌ WorkflowExecutionFailed
 ```
 
@@ -359,7 +343,7 @@ Test your understanding before moving on:
 <details>
 <summary>Answer</summary>
 
-Only `cancelIntakeActivity`. The `approvalId` is still `null` because `recordApprovalActivity` never completed, so the `if (approvalId)` check skips `revokeApprovalActivity`. This is why state tracking matters — you only compensate what actually succeeded.
+Only `updateIntakeStatusActivity`. The `approvalId` is still `null` because `recordApprovalActivity` never completed, so the `if (approvalId)` check skips `revokeApprovalActivity`. This is why state tracking matters — you only compensate what actually succeeded.
 </details>
 
 **2.** Why must compensations run in reverse order?
@@ -367,15 +351,15 @@ Only `cancelIntakeActivity`. The `approvalId` is still `null` because `recordApp
 <details>
 <summary>Answer</summary>
 
-Because each step may depend on the previous one's state. If you cancelled the intake before revoking the approval, the approval record would reference a non-existent intake. Reverse order ensures each undo operation works on a valid system state.
+Because each step may depend on the previous one's state. If you stamped the intake as `payment-failed` before revoking the approval, the approval record would briefly reference an intake already marked dead. Reverse order ensures each repair operation works on a valid system state.
 </details>
 
-**3.** A colleague suggests: "Just wrap the whole workflow in try/catch and always run all four compensation activities." What's wrong with this?
+**3.** A colleague suggests: "Just wrap the whole workflow in try/catch and always run every compensation activity." What's wrong with this?
 
 <details>
 <summary>Answer</summary>
 
-If `submitIntakeFormActivity` fails, `intakeId` is null and `cancelIntakeActivity` would crash (or silently fail if given a null/undefined ID). Compensating steps that never ran can cause new errors or leave the system in an inconsistent state. Always track state and only compensate what succeeded.
+If `submitIntakeFormActivity` fails, `intakeId` is null and `updateIntakeStatusActivity` would crash (or silently fail if given a null/undefined ID). Compensating steps that never ran can cause new errors or leave the system in an inconsistent state. Always track state and only compensate what succeeded.
 </details>
 
 ---
@@ -422,8 +406,8 @@ setHandler(approveWellnessPurchaseSignal, async (decision) => {
 
 **Wrong compensation order**
 ```
-❌ cancelIntake → revokeApproval  (forward order — wrong!)
-✅ revokeApproval → cancelIntake  (reverse order — correct!)
+❌ updateIntakeStatus → revokeApproval  (forward order — wrong!)
+✅ revokeApproval → updateIntakeStatus  (reverse order — correct!)
 ```
 
 **Forgetting null checks**
@@ -454,12 +438,13 @@ if (approvalId) await revokeApprovalActivity(approvalId);
 
 ## Success Criteria
 
-- ✅ Worker starts and registers all 6 activities + workflow
+- ✅ Worker starts and registers all activities + workflow
 - ✅ `client.ts` starts a workflow visible in Temporal UI
 - ✅ `approver.ts` sends a signal that resumes the workflow (visible in Event History)
 - ✅ Happy path completes with `status: completed` and a `prescriptionId`
 - ✅ `FORCE_PAYMENT_FAIL=true` triggers compensation chain in reverse order (visible in Event History)
-- ✅ Denial path (`--deny` flag) cancels intake and returns `status: rejected`
+- ✅ Denial path (`--deny` flag) marks intake as `rejected` and returns `status: rejected`
+- ✅ Timeout path marks intake as `expired` and returns `status: expired`
 
 ---
 
@@ -467,7 +452,7 @@ if (approvalId) await revokeApprovalActivity(approvalId);
 
 1. **Add a timeout scenario** — let the 30-second window expire without sending a signal. What status do you get?
 2. **Extend the approval** — add a `patientId` query so the doctor can look up patient info before approving
-3. **Add a prescription failure** — make `sendPrescriptionActivity` also fail sometimes, and add its compensation (cancel payment refund)
+3. **Add a prescription failure** — make `sendPrescriptionActivity` also fail sometimes, and add its compensation (refund the payment)
 4. **Real persistence** — replace the simulated `uuid` returns with actual database records
 
 ---
