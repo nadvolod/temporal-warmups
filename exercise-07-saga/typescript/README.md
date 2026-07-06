@@ -1,5 +1,30 @@
 # Exercise 07 — Wellness Purchase Workflow (TypeScript)
 
+## Table of Contents
+
+- [Scenario](#scenario)
+- [The Problem](#the-problem)
+- [What You'll Build](#what-youll-build)
+- [What You'll Learn](#what-youll-learn)
+- [Prerequisites](#prerequisites)
+- [Step 1: Run the Broken Version](#step-1-run-the-broken-version)
+- [Saga Pattern: Why This Exercise Exists](#saga-pattern-why-this-exercise-exists)
+- [Setup for Temporal Steps](#setup-for-temporal-steps)
+- [Step 2: Inspect the Ready-Made Activities](#step-2-inspect-the-ready-made-activities)
+- [Step 3: Implement the Signal Handler](#step-3-implement-the-signal-handler)
+- [Step 4: Implement the Temporal Saga Workflow](#step-4-implement-the-temporal-saga-workflow)
+- [Step 5: Break the Saga (On Purpose)](#step-5-break-the-saga-on-purpose)
+  - [5A — Remove nonCancellable](#5a--remove-noncancellable-watch-compensations-get-cut-short)
+  - [5B — Register After vs Before](#5b--register-compensation-after-the-activity-watch-a-compensation-silently-disappear)
+  - [5C — The maximumAttempts Gap](#5c--the-gap-you-didnt-see-maximumattempts-3-on-payment)
+- [Quiz](#quiz)
+- [Common Pitfalls](#common-pitfalls)
+- [Success Criteria](#success-criteria)
+- [Next Steps](#next-steps)
+- [Additional Resources](#additional-resources)
+
+---
+
 ## Scenario
 
 A patient visits a wellness platform, fills out an intake form, and wants to purchase a prescription supplement. Before anything can ship, a healthcare provider must review and approve the order. Once approved, payment is processed and the prescription is sent.
