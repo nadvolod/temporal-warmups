@@ -342,9 +342,23 @@ Critical - after every update to an exercise, retest everything end-to-end by fo
 Run each command in the README in order, verify each checkpoint produces the described output, and confirm every code path (happy path, failures, compensations, timeouts) still behaves as documented.
 If the code and README have drifted, fix them so they match. A change is not done until the README's instructions actually work.
 
-## Exericse Readme structure
+## Exercise Readme structure
 
 - File Structure section is not valuable
+
+## Temporal Term Definitions
+
+Every time a README introduces or uses a Temporal-specific term (e.g., Signal, Activity, Workflow, Task Queue, startToCloseTimeout, scheduleToCloseTimeout, CancellationScope, proxyActivities, condition, nonRetryable, ApplicationFailure, history replay, etc.), that term must be defined inline the first time it appears.
+
+Definition format: one sentence, plain language, aimed at a year-one college student. Place it immediately after the term — as a parenthetical, a blockquote, or a `> **Term:**` callout. Do not defer definitions to a glossary at the end.
+
+Examples:
+- Signal — *(a one-way push of data into a running workflow from external code)*
+- startToCloseTimeout — *(the maximum time a single activity execution can run before Temporal cancels it)*
+- Task Queue — *(a named channel that routes work from the Temporal server to your workers)*
+- history replay — *(Temporal's mechanism of re-executing workflow code from the beginning to recover state after a crash — this is why workflow code must be deterministic)*
+
+If a term was defined in a previous exercise in the series, a one-line reminder is acceptable instead of a full definition.
 
 ## Resources
 

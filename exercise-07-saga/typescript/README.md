@@ -58,8 +58,8 @@ This keeps the warmup pointed at the skill you came here to practice. No one nee
 
 You'll combine two patterns:
 
-1. **Signals** (you learned this in Exercise 06) — a real doctor "sends" approval by signaling into the running workflow
-2. **Saga/Compensation** (you learned this in Exercise 05) — if payment fails, the workflow automatically reverses everything that succeeded
+1. **Signals** *(a one-way push of data into a running workflow from external code — like dropping a note through a mail slot into a running process)* (you learned this in Exercise 06) — a real doctor "sends" approval by signaling into the running workflow
+2. **Saga/Compensation** *(a pattern where each forward step is paired with a undo step, run in reverse order if a later step fails)* (you learned this in Exercise 05) — if payment fails, the workflow automatically reverses everything that succeeded
 
 ```
 submitIntakeForm()
@@ -88,6 +88,8 @@ The magic: **Temporal guarantees compensations run** even if the worker crashes 
 3. **Compensation in reverse order** — most recent step undone first
 4. **`CancellationScope.nonCancellable`** — compensations run even if the workflow is cancelled
 5. **`ApplicationFailure`** — how activities signal non-retryable failures
+6. **Compensation stack pattern** — register-before vs. register-after, and when the difference matters
+7. **Breaking things on purpose** — what orphaned state looks like in Event History when saga design fails
 
 ---
 
@@ -223,7 +225,7 @@ In this exercise:
 Not every compensation is an undo. Sometimes the right repair is "mark as payment-failed," "release the hold," "send a correction," or "open a manual review task" — leaving durable business value in place while recording the truth. The key is to design the business repair path before the failure happens.
 </details>
 
-**Checkpoint 1:** Start the worker and verify it registers without errors:
+**Checkpoint 1:** Start the **worker** *(a long-running process you manage that polls Temporal for tasks and executes your workflow and activity code)* and verify it registers without errors:
 ```bash
 npx ts-node worker.ts
 ```
@@ -233,6 +235,8 @@ You should see:
 🏥 Wellness worker started on task queue: wellness-purchase
    Waiting for workflow tasks... (Ctrl+C to stop)
 ```
+
+> **Task Queue** *(a named channel in Temporal that routes work from the server to the right workers — think of it as a delivery address for workflow and activity tasks)* — `wellness-purchase` is the name used by both the worker and the client to agree on where to send and receive work.
 
 ---
 
@@ -246,7 +250,7 @@ You need to:
 
 When approver.ts sends the signal, the handler fires and sets `approval`. The `condition()` call in Step 4 is watching that variable.
 
-Think of `setHandler` like a mailbox. The workflow keeps running, and whenever the signal arrives, the handler deposits it into `approval`. The workflow doesn't block waiting — it can do other work. `condition()` is what actually pauses until the mailbox has something.
+Think of `setHandler` like a mailbox. The workflow keeps running, and whenever the signal arrives, the handler deposits it into `approval`. The workflow doesn't block waiting — it can do other work. `condition()` *(a Temporal SDK function that pauses workflow execution until a predicate becomes true, with an optional timeout)* is what actually pauses until the mailbox has something.
 
 **Checkpoint 2:** After registering the signal handler, test it in isolation:
 ```bash
@@ -258,7 +262,7 @@ npx ts-node client.ts
 npx ts-node approver.ts <workflow-id>
 ```
 
-At this point the workflow will panic at `throw new Error('TODO')`, but you should see the signal arrive in Temporal UI (http://localhost:8233) → Event History.
+At this point the workflow will panic at `throw new Error('TODO')`, but you should see the signal arrive in Temporal UI (http://localhost:8233) → **Event History** *(the durable, append-only log Temporal keeps for every workflow execution — every activity scheduled, signal received, and decision made is recorded here, which is how Temporal can recover and replay workflows after a crash)*.
 
 ---
 
@@ -283,12 +287,12 @@ throw err; // re-throw so the workflow is marked failed
 ```
 
 > **Why `CancellationScope.nonCancellable`?**
-> If a workflow is externally cancelled while compensating, normal activities get cancelled too. `nonCancellable` creates a bubble where your compensations are protected and will always run to completion.
+> `CancellationScope` *(a Temporal construct that controls whether activities inside it can be cancelled by an external cancellation request)* — `nonCancellable` creates a bubble where your compensations are protected and will always run to completion, even if the workflow is cancelled from outside.
 
 > **Why null checks?**
 > `if (approvalId)` ensures we only compensate what actually succeeded. If payment fails *before* recordApproval completes, `approvalId` is still null and we skip that compensation.
 
-> **Production tip:** Wrap *each* compensation in its own `try/catch` (and `log.warn` on failure) so one failing compensation doesn't stop the others — that's what `solution/workflow.ts` does. Also make compensation activities **idempotent**: Temporal may retry them, so running twice must be safe. And notice `processPaymentActivity` throws `ApplicationFailure.nonRetryable` — a declined card is a permanent error, so retrying it would just waste attempts before compensating.
+> **Production tip:** Wrap *each* compensation in its own `try/catch` (and `log.warn` on failure) so one failing compensation doesn't stop the others — that's what `solution/workflow.ts` does. Also make compensation activities **idempotent** *(safe to run more than once with the same result — Temporal may retry an activity, so running twice must leave the system in the same state)*. And notice `processPaymentActivity` throws `ApplicationFailure.nonRetryable` *(an error type that tells Temporal: do not retry this activity, the failure is permanent)* — a declined card is a permanent error, so retrying it would just waste attempts before compensating.
 
 **Checkpoint 3:** Test the happy path end-to-end:
 ```bash
@@ -336,6 +340,167 @@ That's the Saga pattern in action. 🎉
 
 ---
 
+## Step 5: Break the Saga (On Purpose)
+
+The saga works. Now let's deliberately break it — two ways — to build intuition for *why* each design decision exists.
+
+### 5A — Remove `nonCancellable`: watch compensations get cut short
+
+**Prediction first:** If compensations run *without* `CancellationScope.nonCancellable` and a user cancels the workflow mid-compensation, what happens?
+
+Edit the `catch` block in `workflow.ts` to drop the `nonCancellable` wrapper and run compensations directly:
+
+```typescript
+} catch (err) {
+  log.error('Wellness purchase failed — running compensations in reverse order...');
+  // BROKEN — no nonCancellable protection
+  if (approvalId) {
+    try { await revokeApprovalActivity(approvalId); }
+    catch (compErr) { log.warn('Compensation failed: revokeApproval', { approvalId, error: compErr }); }
+  }
+  if (intakeId) {
+    try { await updateIntakeStatusActivity(intakeId, 'payment-failed'); }
+    catch (compErr) { log.warn('Compensation failed: updateIntakeStatus', { intakeId, error: compErr }); }
+  }
+  throw err;
+}
+```
+
+**Checkpoint 5A:**
+1. Worker must have `FORCE_PAYMENT_FAIL=true` set.
+2. Start a workflow and approve it.
+3. The moment you see `COMPENSATION: revoking approval` in worker logs, open Temporal UI → your workflow → **Cancel** it.
+4. Check Event History.
+
+You should see `revokeApprovalActivity` completed but `updateIntakeStatusActivity` was never scheduled — the cancellation cut the chain short. The intake record stays in an ambiguous state. No follow-up process will pick it up.
+
+**Fix:** Restore `CancellationScope.nonCancellable`. Repeat — cancel mid-compensation. Both compensations complete despite the external cancellation.
+
+---
+
+### 5B — Register compensation AFTER the activity: watch a compensation silently disappear
+
+This teaches the **register-before pattern**: push the undo operation onto a stack *before* calling the forward activity, not after.
+
+The null-variable approach you built is safe in Temporal because of history replay. But register-after has a real failure mode: if any synchronous code between the activity call and the push throws, the compensation is never registered — and the catch block has no idea it's missing.
+
+We'll prove it. First, refactor the saga state in `workflow.ts` from null variables to a **compensation stack**:
+
+```typescript
+// Replace this:
+let intakeId: string | null = null;
+let approvalId: string | null = null;
+
+// With this:
+let intakeId: string | null = null;   // still needed for timeout/rejection paths
+let approvalId: string | null = null; // still needed for sendPrescriptionActivity
+const compensations: (() => Promise<void>)[] = [];
+```
+
+Replace the compensation block in `catch` with a stack loop:
+
+```typescript
+await CancellationScope.nonCancellable(async () => {
+  for (const comp of [...compensations].reverse()) {
+    try { await comp(); }
+    catch (compErr) { log.warn('Compensation failed', { error: compErr }); }
+  }
+});
+```
+
+**Broken version — register AFTER:** Update the forward steps to push compensations after each activity, and inject a fault between one activity and its push:
+
+```typescript
+intakeId = await submitIntakeFormActivity(intake);
+compensations.push(async () => {
+  if (intakeId) await updateIntakeStatusActivity(intakeId!, 'payment-failed');
+}); // AFTER — ok here because nothing between activity and push
+
+approvalId = await recordApprovalActivity(approval!);
+
+// ⚠️ INJECT FAULT: uncomment to simulate a sync error before compensation is registered
+throw new Error('Fault: sync error before revokeApproval was registered!');
+
+compensations.push(async () => {
+  if (approvalId) await revokeApprovalActivity(approvalId!);
+}); // AFTER — NEVER REACHED when fault is active
+```
+
+**Checkpoint 5B-broken:** With the fault uncommented (no `FORCE_PAYMENT_FAIL` needed — the throw handles it), start a workflow and approve it. Check Event History:
+
+```
+✅ submitIntakeFormActivity
+✅ recordApprovalActivity     ← side effect exists: approval IS in the system
+❌ Workflow failed with "Fault: sync error..."
+✅ updateIntakeStatusActivity ← runs (was registered before the fault)
+   revokeApprovalActivity     ← NEVER RUNS ← approval record is ORPHANED
+```
+
+The provider approved a prescription that was never fulfilled — and the approval record is still "active." Same orphaned state as the pre-Temporal version.
+
+**Fix — register BEFORE:** Move the `compensations.push(...)` for `revokeApprovalActivity` to *before* the activity call. The closure captures `approvalId` by reference — its value is null at push time, but resolved to the real ID by the time the compensation executes.
+
+```typescript
+// BEFORE: push compensation first, THEN call the activity
+compensations.push(async () => {
+  if (approvalId) await revokeApprovalActivity(approvalId!);
+}); // registered BEFORE the activity
+
+approvalId = await recordApprovalActivity(approval!);
+
+// ⚠️ INJECT FAULT: still here — to prove the compensation runs anyway
+throw new Error('Fault: but revokeApproval IS in the stack now!');
+```
+
+**Checkpoint 5B-fixed:** With the fault still active, run again. Check Event History:
+
+```
+✅ submitIntakeFormActivity
+✅ recordApprovalActivity
+❌ Workflow failed with "Fault: but revokeApproval IS in the stack now!"
+✅ revokeApprovalActivity     ← ran! registered BEFORE the activity call
+✅ updateIntakeStatusActivity ← ran!
+```
+
+Both compensations ran. Same sync error, same activity results — the only difference was when the compensation was pushed.
+
+**Remove the injected throw** when done exploring, and restore your forward steps to the stack-based register-before pattern:
+
+```typescript
+compensations.push(async () => {
+  if (intakeId) await updateIntakeStatusActivity(intakeId!, 'payment-failed');
+});
+intakeId = await submitIntakeFormActivity(intake);
+
+// ... signal wait and rejection/timeout handling unchanged ...
+
+compensations.push(async () => {
+  if (approvalId) await revokeApprovalActivity(approvalId!);
+});
+approvalId = await recordApprovalActivity(approval!);
+```
+
+> **Why Temporal doesn't fully save you from register-after:** History replay *(Temporal's mechanism of re-executing workflow code from the beginning to recover state after a crash — results of completed activities are replayed from the log, not re-executed)* re-executes workflow code deterministically, which *does* reconstruct a compensation stack built with register-after in most cases. But replay is not a substitute for correctness: sync exceptions, panics, and non-Temporal saga coordinators can all hit the timing gap. Register-before is the safe default — and the pattern that generalizes across every language and framework.
+
+### 5C — The gap you didn't see: `maximumAttempts: 3` on payment
+
+Look at `workflow.ts` — `proxyActivities` sets `retry: { maximumAttempts: 3 }` on **all** activities, including `processPaymentActivity`. Now look at `activities.ts` — `processPaymentActivity` throws `ApplicationFailure.nonRetryable`.
+
+**Discussion question:** Without `nonRetryable`, what would happen?
+
+<details>
+<summary>Think first, then expand</summary>
+
+Without `nonRetryable`, a declined card triggers 3 payment attempts before the workflow gives up and compensates. That's three separate charges attempted against a card the bank already refused — potentially a worse customer experience, and three times the processing fees.
+
+But there's a subtler problem: what if `processPaymentActivity` *partially* succeeds on attempt 2 (money left the patient's account) before crashing? By the time the retry fires and fails definitively on attempt 3, the workflow goes to the catch block — but there's no `refundPaymentActivity` compensation. The patient was charged, the prescription was never sent, and nothing cleans up the charge.
+
+This is why `ApplicationFailure.nonRetryable` + a refund compensation belong together in production: mark the payment activity non-retryable *and* add a `refundPaymentActivity` to the compensation stack. This exercise omits the refund for simplicity — but you've now seen exactly where the gap is.
+
+</details>
+
+---
+
 ## Quiz
 
 Test your understanding before moving on:
@@ -380,7 +545,7 @@ import * as activities from './activities';
 ```
 The workflow runs in an isolated V8 sandbox. Importing actual activity modules into it can cause bundling errors and non-determinism.
 
-**`proxyActivities` is the bridge**
+**`proxyActivities` is the bridge** *(a Temporal SDK function that creates a type-safe stub for calling activities from a workflow — under the hood it schedules the activity on the Task Queue instead of calling the function directly)*
 ```typescript
 // ✅ Always call activities through the proxy
 const { submitIntakeFormActivity } = proxyActivities<typeof activities>({ ... });
@@ -447,6 +612,8 @@ if (approvalId) await revokeApprovalActivity(approvalId);
 - ✅ `FORCE_PAYMENT_FAIL=true` triggers compensation chain in reverse order (visible in Event History)
 - ✅ Denial path (`--deny` flag) marks intake as `rejected` and returns `status: rejected`
 - ✅ Timeout path marks intake as `expired` and returns `status: expired`
+- ✅ Step 5A: removing `nonCancellable` results in an incomplete compensation chain visible in Event History
+- ✅ Step 5B: injected fault with register-after shows orphaned approval; register-before shows both compensations running
 
 ---
 
@@ -473,4 +640,5 @@ if (approvalId) await revokeApprovalActivity(approvalId);
 - Run the broken version: 5 minutes
 - Inspect ready-made activities: 5 minutes
 - Implement the workflow: 30–45 minutes
-- Total: **~45–55 minutes**
+- Step 5 experiments: 15–20 minutes
+- Total: **~60–75 minutes**
