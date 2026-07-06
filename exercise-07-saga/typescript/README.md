@@ -288,6 +288,8 @@ throw err; // re-throw so the workflow is marked failed
 > **Why null checks?**
 > `if (approvalId)` ensures we only compensate what actually succeeded. If payment fails *before* recordApproval completes, `approvalId` is still null and we skip that compensation.
 
+> **Production tip:** Wrap *each* compensation in its own `try/catch` (and `log.warn` on failure) so one failing compensation doesn't stop the others — that's what `solution/workflow.ts` does. Also make compensation activities **idempotent**: Temporal may retry them, so running twice must be safe. And notice `processPaymentActivity` throws `ApplicationFailure.nonRetryable` — a declined card is a permanent error, so retrying it would just waste attempts before compensating.
+
 **Checkpoint 3:** Test the happy path end-to-end:
 ```bash
 # Terminal 2

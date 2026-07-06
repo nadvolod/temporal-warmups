@@ -1,65 +1,69 @@
-import { ApplicationFailure } from '@temporalio/activity';
+import { ApplicationFailure, log } from '@temporalio/activity';
 import { v4 as uuid } from 'uuid';
 import type { WellnessIntake, ApprovalDecision } from './models';
 
 export async function submitIntakeFormActivity(intake: WellnessIntake): Promise<string> {
-  console.log(`📋 Submitting intake form for patient: ${intake.patientId}`);
-  console.log(`   Product: ${intake.productName} (${intake.dosage})`);
-  console.log(`   Condition: ${intake.prescribingCondition}`);
+  log.info('Submitting intake form', {
+    patientId: intake.patientId,
+    product: intake.productName,
+    dosage: intake.dosage,
+    condition: intake.prescribingCondition,
+  });
   await sleep(500);
   const intakeId = `intake-${uuid()}`;
-  console.log(`✅ Intake form submitted. ID: ${intakeId}`);
+  log.info('Intake form submitted', { intakeId });
   return intakeId;
 }
 
 export async function recordApprovalActivity(approval: ApprovalDecision): Promise<string> {
-  console.log(`📝 Recording approval from provider: ${approval.providerId}`);
-  if (approval.notes) {
-    console.log(`   Notes: ${approval.notes}`);
-  }
+  log.info('Recording approval', { providerId: approval.providerId, notes: approval.notes });
   await sleep(300);
   const approvalId = `approval-${uuid()}`;
-  console.log(`✅ Approval recorded. ID: ${approvalId}`);
+  log.info('Approval recorded', { approvalId });
   return approvalId;
 }
 
 export async function processPaymentActivity(patientId: string): Promise<string> {
-  console.log(`💳 Processing payment for patient: ${patientId}`);
+  log.info('Processing payment', { patientId });
   await sleep(800);
 
   const forceFailure = process.env.FORCE_PAYMENT_FAIL === 'true';
   if (forceFailure || Math.random() < 0.3) {
-    console.log(`❌ Payment declined!`);
-    throw ApplicationFailure.create({ message: 'Payment processing failed: card declined' });
+    log.warn('Payment declined', { patientId });
+    // A declined card is a permanent business error — retrying the same card
+    // won't help. Mark it non-retryable so the workflow goes straight to saga
+    // compensation instead of burning retry attempts on a guaranteed failure.
+    throw ApplicationFailure.nonRetryable('Payment processing failed: card declined', 'PaymentError');
   }
 
   const paymentId = `payment-${uuid()}`;
-  console.log(`✅ Payment processed. ID: ${paymentId}`);
+  log.info('Payment processed', { paymentId });
   return paymentId;
 }
 
 export async function sendPrescriptionActivity(intake: WellnessIntake, approvalId: string): Promise<string> {
-  console.log(`💊 Sending prescription for: ${intake.productName}`);
-  console.log(`   Dosage: ${intake.dosage}`);
-  console.log(`   Approval ref: ${approvalId}`);
+  log.info('Sending prescription', { product: intake.productName, dosage: intake.dosage, approvalId });
   await sleep(500);
   const prescriptionId = `rx-${uuid()}`;
-  console.log(`✅ Prescription sent. ID: ${prescriptionId}`);
+  log.info('Prescription sent', { prescriptionId });
   return prescriptionId;
 }
 
-// Compensation activities — run when a forward step must be undone
+// Compensation activities — run when a forward step must be repaired.
+// NOTE: In a real system, compensations must be idempotent. Temporal can retry
+// an activity, so running a compensation twice must be safe (e.g. "revoke only
+// if not already revoked", "set status if not already set").
 
 export async function revokeApprovalActivity(approvalId: string): Promise<void> {
-  console.log(`↩️  COMPENSATION: Revoking approval: ${approvalId}`);
+  log.info('COMPENSATION: revoking approval', { approvalId });
   await sleep(300);
-  console.log(`✅ Approval revoked.`);
+  log.info('Approval revoked', { approvalId });
 }
 
 export async function updateIntakeStatusActivity(intakeId: string, status: string): Promise<void> {
-  console.log(`↩️  COMPENSATION: Updating intake ${intakeId} status to: ${status}`);
+  log.info('COMPENSATION: updating intake status', { intakeId, status });
   await sleep(300);
-  console.log(`✅ Intake status updated to '${status}'. Record preserved as lead.`);
+  log.info('Intake status updated — record preserved as lead', { intakeId, status });
 }
 
 function sleep(ms: number): Promise<void> {

@@ -76,10 +76,24 @@ export async function wellnessPurchaseWorkflow(intake: WellnessIntake): Promise<
   } catch (err) {
     log.error('Wellness purchase failed — running compensations in reverse order...');
 
-    // CancellationScope.nonCancellable ensures compensations run even if the workflow is cancelled
+    // nonCancellable ensures compensations run even if the workflow is cancelled.
+    // Each compensation is isolated in its own try/catch so one failure doesn't
+    // stop the others from running.
     await CancellationScope.nonCancellable(async () => {
-      if (approvalId) await revokeApprovalActivity(approvalId);                        // compensation 1 (most recent first)
-      if (intakeId) await updateIntakeStatusActivity(intakeId, 'payment-failed');     // compensation 2 — preserve lead
+      if (approvalId) {
+        try {
+          await revokeApprovalActivity(approvalId); // compensation 1 (most recent first)
+        } catch (compErr) {
+          log.warn('Compensation failed: revokeApproval', { approvalId, error: compErr });
+        }
+      }
+      if (intakeId) {
+        try {
+          await updateIntakeStatusActivity(intakeId, 'payment-failed'); // compensation 2 — preserve lead
+        } catch (compErr) {
+          log.warn('Compensation failed: updateIntakeStatus', { intakeId, error: compErr });
+        }
+      }
     });
 
     throw err;
